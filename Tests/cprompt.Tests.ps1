@@ -241,5 +241,27 @@ Describe 'Get-RefinerOutput' {
         $result.Mode | Should Be 'passthrough'
         $result.Payload | Should Be 'preserve this exactly'
     }
+
+    It 'parses a single-question envelope' {
+        $raw = '<questions><q>which language?</q></questions>'
+        $result = Get-RefinerOutput $raw
+        $result.Mode | Should Be 'questions'
+        $result.Payload.Count | Should Be 1
+        $result.Payload[0] | Should Be 'which language?'
+    }
+
+    It 'parses a two-question envelope' {
+        $raw = '<questions><q>a?</q><q>b?</q></questions>'
+        $result = Get-RefinerOutput $raw
+        $result.Payload.Count | Should Be 2
+        $result.Payload[0] | Should Be 'a?'
+        $result.Payload[1] | Should Be 'b?'
+    }
+
+    It 'parses a three-question envelope' {
+        $raw = '<questions><q>a?</q><q>b?</q><q>c?</q></questions>'
+        $result = Get-RefinerOutput $raw
+        $result.Payload.Count | Should Be 3
+    }
 }
 

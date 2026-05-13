@@ -139,12 +139,29 @@ function Get-RefinerOutput {
     param([string]$RawOutput)
     if (-not $RawOutput) { return $null }
     $clean = Remove-Bom $RawOutput
+
     $passthrough = [regex]::Match($clean, '(?s)<passthrough>(.*?)</\w+>')
     if ($passthrough.Success) {
         $payload = $passthrough.Groups[1].Value.Trim()
         if ([string]::IsNullOrWhiteSpace($payload)) { return $null }
         return @{ Mode = 'passthrough'; Payload = $payload }
     }
+
+    $questionsBlock = [regex]::Match($clean, '(?s)<questions>(.*?)</questions>')
+    if ($questionsBlock.Success) {
+        $inner = $questionsBlock.Groups[1].Value
+        $qMatches = [regex]::Matches($inner, '(?s)<q>(.*?)</\w+>')
+        $qs = @()
+        foreach ($qm in $qMatches) {
+            $text = $qm.Groups[1].Value.Trim()
+            if (-not [string]::IsNullOrWhiteSpace($text)) {
+                $qs += $text
+            }
+        }
+        if ($qs.Count -eq 0) { return $null }
+        return @{ Mode = 'questions'; Payload = $qs }
+    }
+
     return $null
 }
 
