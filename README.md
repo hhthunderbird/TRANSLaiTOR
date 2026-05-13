@@ -13,9 +13,10 @@ user idea → c.ps1 → Ollama (prompt-opt model) → <task><context><constraint
 ## Install
 
 1. Install [Ollama](https://ollama.com) and pull base: `ollama pull llama3.2:3b`.
-2. Create the local model:
+2. Create the local models:
    ```powershell
-   ollama create prompt-opt -f C:\Users\hhthu\Scripts\Modelfile.compiler
+   ollama create prompt-opt      -f C:\Users\hhthu\Scripts\Modelfile.compiler
+   ollama create prompt-refiner  -f C:\Users\hhthu\Scripts\Modelfile.refiner
    ```
 3. Put `C:\Users\hhthu\Scripts` on `PATH` and add `.PS1` to `PATHEXT`, or use the
    bundled `c.cmd` shim and put only `C:\Users\hhthu\Scripts` on `PATH`.
@@ -27,7 +28,21 @@ c "spawn 1000 inimigos com pooling no ecs"           # distill + copy XML to cli
 c "..." -Raw                                          # print XML to stdout (scriptable)
 c "..." -Send                                         # pipe XML directly to claude -p
 c "..." -Model prompt-opt-other                       # use a different Ollama model
+c "..." -NoRefine                                     # skip the refiner, go straight to compiler
+c "..." -RefinerModel prompt-refiner-other            # use a different refiner Ollama model
 ```
+
+## Pipeline stages
+
+1. **Refiner** (`prompt-refiner`): inspects the raw input. Emits
+   `<passthrough>` when the input is already specific, or `<questions>`
+   with 1–3 clarifying questions when the input is vague. Answers are
+   collected in the terminal and merged into the input. Bypassed by
+   `-NoRefine` or `-Raw`. Failure falls back to the raw input.
+2. **Compiler** (`prompt-opt`): turns the (possibly enriched) input
+   into the three-tag XML block. Cached by `(model, final input)`.
+3. **Sink**: clipboard (default), `claude -p` (`-Send`), or stdout
+   (`-Raw`).
 
 ## Files
 
