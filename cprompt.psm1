@@ -134,6 +134,20 @@ function Test-InputAcceptable {
     return $true
 }
 
+function Get-RefinerOutput {
+    [CmdletBinding()]
+    param([string]$RawOutput)
+    if (-not $RawOutput) { return $null }
+    $clean = Remove-Bom $RawOutput
+    $passthrough = [regex]::Match($clean, '(?s)<passthrough>(.*?)</\w+>')
+    if ($passthrough.Success) {
+        $payload = $passthrough.Groups[1].Value.Trim()
+        if ([string]::IsNullOrWhiteSpace($payload)) { return $null }
+        return @{ Mode = 'passthrough'; Payload = $payload }
+    }
+    return $null
+}
+
 Export-ModuleMember -Function `
     Remove-Bom, `
     Get-PromptXml, `
@@ -144,4 +158,5 @@ Export-ModuleMember -Function `
     Get-CachedXml, `
     Set-CachedXml, `
     Add-HistoryEntry, `
-    Get-LastHistoryEntry
+    Get-LastHistoryEntry, `
+    Get-RefinerOutput

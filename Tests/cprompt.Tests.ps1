@@ -234,3 +234,12 @@ Describe 'Test-InputAcceptable' {
     }
 }
 
+Describe 'Get-RefinerOutput' {
+    It 'parses a clean passthrough envelope' {
+        $raw = '<passthrough>preserve this exactly</passthrough>'
+        $result = Get-RefinerOutput $raw
+        $result.Mode | Should Be 'passthrough'
+        $result.Payload | Should Be 'preserve this exactly'
+    }
+}
+
