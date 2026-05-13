@@ -376,3 +376,37 @@ Describe 'Merge-RefinementAnswers' {
     }
 }
 
+Describe 'Add-MetricEntry' {
+    It 'creates the directory and writes a JSONL line' {
+        $path = Join-Path $TestDrive 'm1/metrics.jsonl'
+        Add-MetricEntry -Path $path -Entry @{ mode = 'passthrough'; totalMs = 100 }
+        (Test-Path $path) | Should Be $true
+        $lines = @(Get-Content -LiteralPath $path -Encoding UTF8)
+        $lines.Count | Should Be 1
+        $obj = $lines[0] | ConvertFrom-Json
+        $obj.mode | Should Be 'passthrough'
+        $obj.totalMs | Should Be 100
+    }
+
+    It 'auto-injects a UTC ts field when missing' {
+        $path = Join-Path $TestDrive 'm2/metrics.jsonl'
+        Add-MetricEntry -Path $path -Entry @{ mode = 'cache' }
+        $obj = (Get-Content -LiteralPath $path -Encoding UTF8) | ConvertFrom-Json
+        $obj.ts | Should Match '^\d{4}-\d{2}-\d{2}T'
+    }
+
+    It 'preserves a caller-supplied ts field' {
+        $path = Join-Path $TestDrive 'm3/metrics.jsonl'
+        Add-MetricEntry -Path $path -Entry @{ ts = '2020-01-01T00:00:00Z'; mode = 'raw' }
+        $obj = (Get-Content -LiteralPath $path -Encoding UTF8) | ConvertFrom-Json
+        $obj.ts | Should Be '2020-01-01T00:00:00Z'
+    }
+
+    It 'appends additional entries on subsequent calls' {
+        $path = Join-Path $TestDrive 'm4/metrics.jsonl'
+        Add-MetricEntry -Path $path -Entry @{ mode = 'raw' }
+        Add-MetricEntry -Path $path -Entry @{ mode = 'questions' }
+        $lines = @(Get-Content -LiteralPath $path -Encoding UTF8)
+        $lines.Count | Should Be 2
+    }
+}

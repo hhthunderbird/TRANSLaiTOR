@@ -123,6 +123,23 @@ function Get-LastHistoryEntry {
     return ($lines[-1] | ConvertFrom-Json)
 }
 
+function Add-MetricEntry {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][hashtable]$Entry
+    )
+    $dir = Split-Path -Parent $Path
+    if ($dir -and -not (Test-Path -LiteralPath $dir)) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    }
+    if (-not $Entry.ContainsKey('ts')) {
+        $Entry['ts'] = (Get-Date).ToUniversalTime().ToString('o')
+    }
+    $line = ConvertTo-Json -InputObject $Entry -Compress -Depth 6
+    Add-Content -LiteralPath $Path -Value $line -Encoding UTF8
+}
+
 function Test-InputAcceptable {
     [CmdletBinding()]
     param(
@@ -218,6 +235,7 @@ Export-ModuleMember -Function `
     Set-CachedXml, `
     Add-HistoryEntry, `
     Get-LastHistoryEntry, `
+    Add-MetricEntry, `
     Get-RefinerOutput, `
     Test-RefinerOutput, `
     Merge-RefinementAnswers
