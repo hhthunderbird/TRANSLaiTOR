@@ -148,6 +148,12 @@ function Get-RefinerOutput {
     }
 
     $questionsBlock = [regex]::Match($clean, '(?s)<questions>(.*?)</questions>')
+    if (-not $questionsBlock.Success) {
+        # Fallback: outer close tag hallucinated. Use greedy match to capture all
+        # inner content up to the last </word> tag. Inner <q> parsing then handles
+        # the rest defensively.
+        $questionsBlock = [regex]::Match($clean, '(?s)<questions>(.*)</\w+>')
+    }
     if ($questionsBlock.Success) {
         $inner = $questionsBlock.Groups[1].Value
         $qMatches = [regex]::Matches($inner, '(?s)<q>(.*?)</\w+>')

@@ -279,5 +279,27 @@ Describe 'Get-RefinerOutput' {
         $result.Payload[0] | Should Be 'a?'
         $result.Payload[1] | Should Be 'b?'
     }
+
+    It 'salvages passthrough when close tag is hallucinated' {
+        $raw = '<passthrough>keep me</wrong>'
+        $result = Get-RefinerOutput $raw
+        $result.Mode | Should Be 'passthrough'
+        $result.Payload | Should Be 'keep me'
+    }
+
+    It 'salvages questions when outer close tag is hallucinated' {
+        $raw = '<questions><q>x?</q><q>y?</q></ask>'
+        $result = Get-RefinerOutput $raw
+        $result.Mode | Should Be 'questions'
+        $result.Payload.Count | Should Be 2
+    }
+
+    It 'salvages each q when q close tag is hallucinated' {
+        $raw = '<questions><q>x?</question><q>y?</q></questions>'
+        $result = Get-RefinerOutput $raw
+        $result.Mode | Should Be 'questions'
+        $result.Payload[0] | Should Be 'x?'
+        $result.Payload[1] | Should Be 'y?'
+    }
 }
 
