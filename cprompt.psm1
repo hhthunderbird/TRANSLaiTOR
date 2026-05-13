@@ -172,6 +172,23 @@ function Get-RefinerOutput {
     return $null
 }
 
+function Test-RefinerOutput {
+    [CmdletBinding()]
+    param($Parsed)
+    if ($null -eq $Parsed) { return $false }
+    if (-not $Parsed.ContainsKey('Mode')) { return $false }
+    if (-not $Parsed.ContainsKey('Payload')) { return $false }
+    switch ($Parsed.Mode) {
+        'passthrough' {
+            return -not [string]::IsNullOrWhiteSpace([string]$Parsed.Payload)
+        }
+        'questions' {
+            return ($Parsed.Payload -is [array]) -and ($Parsed.Payload.Count -gt 0)
+        }
+        default { return $false }
+    }
+}
+
 Export-ModuleMember -Function `
     Remove-Bom, `
     Get-PromptXml, `
@@ -183,4 +200,5 @@ Export-ModuleMember -Function `
     Set-CachedXml, `
     Add-HistoryEntry, `
     Get-LastHistoryEntry, `
-    Get-RefinerOutput
+    Get-RefinerOutput, `
+    Test-RefinerOutput

@@ -319,3 +319,29 @@ Describe 'Get-RefinerOutput' {
     }
 }
 
+Describe 'Test-RefinerOutput' {
+    It 'returns $true for a valid passthrough hashtable' {
+        (Test-RefinerOutput @{ Mode = 'passthrough'; Payload = 'x' }) | Should Be $true
+    }
+
+    It 'returns $true for a valid questions hashtable' {
+        (Test-RefinerOutput @{ Mode = 'questions'; Payload = @('a?', 'b?') }) | Should Be $true
+    }
+
+    It 'returns $false for $null' {
+        (Test-RefinerOutput $null) | Should Be $false
+    }
+
+    It 'returns $false for unknown Mode' {
+        (Test-RefinerOutput @{ Mode = 'banana'; Payload = 'x' }) | Should Be $false
+    }
+
+    It 'returns $false for passthrough with empty Payload' {
+        (Test-RefinerOutput @{ Mode = 'passthrough'; Payload = '' }) | Should Be $false
+    }
+
+    It 'returns $false for questions with empty list' {
+        (Test-RefinerOutput @{ Mode = 'questions'; Payload = @() }) | Should Be $false
+    }
+}
+
