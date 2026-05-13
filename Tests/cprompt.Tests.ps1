@@ -234,3 +234,145 @@ Describe 'Test-InputAcceptable' {
     }
 }
 
+Describe 'Get-RefinerOutput' {
+    It 'parses a clean passthrough envelope' {
+        $raw = '<passthrough>preserve this exactly</passthrough>'
+        $result = Get-RefinerOutput $raw
+        $result.Mode | Should Be 'passthrough'
+        $result.Payload | Should Be 'preserve this exactly'
+    }
+
+    It 'parses a single-question envelope' {
+        $raw = '<questions><q>which language?</q></questions>'
+        $result = Get-RefinerOutput $raw
+        $result.Mode | Should Be 'questions'
+        $result.Payload.Count | Should Be 1
+        $result.Payload[0] | Should Be 'which language?'
+    }
+
+    It 'parses a two-question envelope' {
+        $raw = '<questions><q>a?</q><q>b?</q></questions>'
+        $result = Get-RefinerOutput $raw
+        $result.Payload.Count | Should Be 2
+        $result.Payload[0] | Should Be 'a?'
+        $result.Payload[1] | Should Be 'b?'
+    }
+
+    It 'parses a three-question envelope' {
+        $raw = '<questions><q>a?</q><q>b?</q><q>c?</q></questions>'
+        $result = Get-RefinerOutput $raw
+        $result.Payload.Count | Should Be 3
+    }
+
+    It 'caps the question list at 3 even if the model emits more' {
+        $raw = '<questions><q>1?</q><q>2?</q><q>3?</q><q>4?</q><q>5?</q></questions>'
+        $result = Get-RefinerOutput $raw
+        $result.Payload.Count | Should Be 3
+        $result.Payload[0] | Should Be '1?'
+        $result.Payload[2] | Should Be '3?'
+    }
+
+    It 'drops empty <q></q> elements before counting' {
+        $raw = '<questions><q>a?</q><q>   </q><q>b?</q></questions>'
+        $result = Get-RefinerOutput $raw
+        $result.Payload.Count | Should Be 2
+        $result.Payload[0] | Should Be 'a?'
+        $result.Payload[1] | Should Be 'b?'
+    }
+
+    It 'salvages passthrough when close tag is hallucinated' {
+        $raw = '<passthrough>keep me</wrong>'
+        $result = Get-RefinerOutput $raw
+        $result.Mode | Should Be 'passthrough'
+        $result.Payload | Should Be 'keep me'
+    }
+
+    It 'salvages questions when outer close tag is hallucinated' {
+        $raw = '<questions><q>x?</q><q>y?</q></ask>'
+        $result = Get-RefinerOutput $raw
+        $result.Mode | Should Be 'questions'
+        $result.Payload.Count | Should Be 2
+    }
+
+    It 'salvages each q when q close tag is hallucinated' {
+        $raw = '<questions><q>x?</question><q>y?</q></questions>'
+        $result = Get-RefinerOutput $raw
+        $result.Mode | Should Be 'questions'
+        $result.Payload[0] | Should Be 'x?'
+        $result.Payload[1] | Should Be 'y?'
+    }
+
+    It 'returns $null on empty input' {
+        (Get-RefinerOutput '') | Should BeNullOrEmpty
+    }
+
+    It 'returns $null when no recognizable envelope is present' {
+        (Get-RefinerOutput 'just some prose, no tags at all') | Should BeNullOrEmpty
+    }
+
+    It 'returns $null when passthrough body is whitespace only' {
+        (Get-RefinerOutput '<passthrough>   </passthrough>') | Should BeNullOrEmpty
+    }
+
+    It 'returns $null when questions body has only empty <q> items' {
+        (Get-RefinerOutput '<questions><q></q><q>   </q></questions>') | Should BeNullOrEmpty
+    }
+}
+
+Describe 'Test-RefinerOutput' {
+    It 'returns $true for a valid passthrough hashtable' {
+        (Test-RefinerOutput @{ Mode = 'passthrough'; Payload = 'x' }) | Should Be $true
+    }
+
+    It 'returns $true for a valid questions hashtable' {
+        (Test-RefinerOutput @{ Mode = 'questions'; Payload = @('a?', 'b?') }) | Should Be $true
+    }
+
+    It 'returns $false for $null' {
+        (Test-RefinerOutput $null) | Should Be $false
+    }
+
+    It 'returns $false for unknown Mode' {
+        (Test-RefinerOutput @{ Mode = 'banana'; Payload = 'x' }) | Should Be $false
+    }
+
+    It 'returns $false for passthrough with empty Payload' {
+        (Test-RefinerOutput @{ Mode = 'passthrough'; Payload = '' }) | Should Be $false
+    }
+
+    It 'returns $false for questions with empty list' {
+        (Test-RefinerOutput @{ Mode = 'questions'; Payload = @() }) | Should Be $false
+    }
+}
+
+Describe 'Merge-RefinementAnswers' {
+    It 'appends each question/answer pair on its own line, separated from raw' {
+        $result = Merge-RefinementAnswers -Raw 'preciso ajuda com cache' -Pairs @(
+            @{ Question = 'qual stack?'; Answer = 'Python + Redis' }
+            @{ Question = 'leitura ou escrita?'; Answer = 'leitura, 100x mais' }
+        )
+        $expected = "preciso ajuda com cache`n`nqual stack?: Python + Redis`nleitura ou escrita?: leitura, 100x mais"
+        $result | Should Be $expected
+    }
+
+    It 'drops pairs whose answer is empty or whitespace' {
+        $result = Merge-RefinementAnswers -Raw 'x' -Pairs @(
+            @{ Question = 'a?'; Answer = '' }
+            @{ Question = 'b?'; Answer = '   ' }
+            @{ Question = 'c?'; Answer = 'yes' }
+        )
+        $result | Should Be "x`n`nc?: yes"
+    }
+
+    It 'returns the raw input unchanged when all pairs are empty' {
+        $result = Merge-RefinementAnswers -Raw 'x' -Pairs @(
+            @{ Question = 'a?'; Answer = '' }
+        )
+        $result | Should Be 'x'
+    }
+
+    It 'returns the raw input unchanged when Pairs is empty' {
+        (Merge-RefinementAnswers -Raw 'x' -Pairs @()) | Should Be 'x'
+    }
+}
+

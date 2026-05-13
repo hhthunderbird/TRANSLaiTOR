@@ -134,6 +134,79 @@ function Test-InputAcceptable {
     return $true
 }
 
+function Get-RefinerOutput {
+    [CmdletBinding()]
+    param([string]$RawOutput)
+    if (-not $RawOutput) { return $null }
+    $clean = Remove-Bom $RawOutput
+
+    $passthrough = [regex]::Match($clean, '(?s)<passthrough>(.*?)</\w+>')
+    if ($passthrough.Success) {
+        $payload = $passthrough.Groups[1].Value.Trim()
+        if ([string]::IsNullOrWhiteSpace($payload)) { return $null }
+        return @{ Mode = 'passthrough'; Payload = $payload }
+    }
+
+    $questionsBlock = [regex]::Match($clean, '(?s)<questions>(.*?)</questions>')
+    if (-not $questionsBlock.Success) {
+        # Fallback: outer close tag hallucinated. Use greedy match to capture all
+        # inner content up to the last </word> tag. Inner <q> parsing then handles
+        # the rest defensively.
+        $questionsBlock = [regex]::Match($clean, '(?s)<questions>(.*)</\w+>')
+    }
+    if ($questionsBlock.Success) {
+        $inner = $questionsBlock.Groups[1].Value
+        $qMatches = [regex]::Matches($inner, '(?s)<q>(.*?)</\w+>')
+        $qs = @()
+        foreach ($qm in $qMatches) {
+            $text = $qm.Groups[1].Value.Trim()
+            if (-not [string]::IsNullOrWhiteSpace($text)) {
+                $qs += $text
+            }
+        }
+        if ($qs.Count -eq 0) { return $null }
+        if ($qs.Count -gt 3) { $qs = $qs[0..2] }
+        return @{ Mode = 'questions'; Payload = $qs }
+    }
+
+    return $null
+}
+
+function Test-RefinerOutput {
+    [CmdletBinding()]
+    param($Parsed)
+    if ($null -eq $Parsed) { return $false }
+    if ($Parsed -isnot [hashtable]) { return $false }
+    if (-not $Parsed.ContainsKey('Mode')) { return $false }
+    if (-not $Parsed.ContainsKey('Payload')) { return $false }
+    switch ($Parsed.Mode) {
+        'passthrough' {
+            return -not [string]::IsNullOrWhiteSpace([string]$Parsed.Payload)
+        }
+        'questions' {
+            return ($Parsed.Payload -is [array]) -and ($Parsed.Payload.Count -gt 0)
+        }
+        default { return $false }
+    }
+}
+
+function Merge-RefinementAnswers {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Raw,
+        [Parameter(Mandatory)][AllowEmptyCollection()][hashtable[]]$Pairs
+    )
+    $kept = @()
+    foreach ($pair in $Pairs) {
+        $answer = [string]$pair.Answer
+        if (-not [string]::IsNullOrWhiteSpace($answer)) {
+            $kept += "$($pair.Question): $($answer.Trim())"
+        }
+    }
+    if ($kept.Count -eq 0) { return $Raw }
+    return "$Raw`n`n" + ($kept -join "`n")
+}
+
 Export-ModuleMember -Function `
     Remove-Bom, `
     Get-PromptXml, `
@@ -144,4 +217,7 @@ Export-ModuleMember -Function `
     Get-CachedXml, `
     Set-CachedXml, `
     Add-HistoryEntry, `
-    Get-LastHistoryEntry
+    Get-LastHistoryEntry, `
+    Get-RefinerOutput, `
+    Test-RefinerOutput, `
+    Merge-RefinementAnswers

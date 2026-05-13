@@ -5,7 +5,9 @@ param(
     [switch]$Help,
     [switch]$NoCache,
     [switch]$Last,
+    [switch]$NoRefine,
     [string]$Model = 'prompt-opt',
+    [string]$RefinerModel = 'prompt-refiner',
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$Prompt
 )
@@ -22,13 +24,15 @@ function Show-Usage {
     @"
 TRANSLaiTOR - local prompt compiler
 
-uso:  c <ideia>            distila e copia XML para clipboard
-      c <ideia> -Raw       imprime XML em stdout (scriptavel)
-      c <ideia> -Send      envia XML direto para claude -p
-      c <ideia> -Model X   usa modelo Ollama diferente (default: prompt-opt)
-      c <ideia> -NoCache   ignora cache, forca chamada nova ao Ollama
-      c -Last              imprime ultimo XML do historico, sem chamar Ollama
-      c -Help              mostra esta ajuda
+uso:  c <ideia>                  distila e copia XML para clipboard
+      c <ideia> -Raw             imprime XML em stdout (implica -NoRefine)
+      c <ideia> -Send            envia XML direto para claude -p
+      c <ideia> -Model X         usa modelo Ollama compilador diferente (default: prompt-opt)
+      c <ideia> -RefinerModel Y  usa modelo Ollama refinador diferente (default: prompt-refiner)
+      c <ideia> -NoRefine        pula o estagio refinador, vai direto ao compilador
+      c <ideia> -NoCache         ignora cache, forca chamada nova ao Ollama compilador
+      c -Last                    imprime ultimo XML do historico
+      c -Help                    mostra esta ajuda
 
 estado local: $script:StateRoot
 limites:      input maximo $script:MaxInputChars caracteres
@@ -83,6 +87,57 @@ if ($Send) {
     }
 }
 
+$rawInput = $userInput
+$refined  = $false
+
+# Tri-state cache for ollama PATH lookup: $null = unchecked, $true/$false = result.
+$ollamaPresent = $null
+
+# `-Raw` implies `-NoRefine`: scripted use cannot answer prompts interactively.
+$skipRefiner = $NoRefine -or $Raw
+
+if (-not $skipRefiner) {
+    try { $null = Resolve-Tool 'ollama'; $ollamaPresent = $true } catch { $ollamaPresent = $false }
+
+    if ($ollamaPresent) {
+        Write-Host "--- refinando input ($RefinerModel) ---" -ForegroundColor DarkCyan
+
+        $prevEAP = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        $refinerRaw = ''
+        try {
+            $refinerRaw = ($userInput | & ollama run $RefinerModel 2>$null | Out-String)
+        } catch {
+            $refinerRaw = ''
+        }
+        $ErrorActionPreference = $prevEAP
+
+        $parsed = $null
+        if ($refinerRaw -and $LASTEXITCODE -eq 0) {
+            $parsed = Get-RefinerOutput $refinerRaw
+        }
+
+        if (Test-RefinerOutput $parsed) {
+            if ($parsed.Mode -eq 'questions') {
+                $pairs = @()
+                $i = 1
+                foreach ($q in $parsed.Payload) {
+                    Write-Host "$i) $q" -ForegroundColor Yellow
+                    $answer = Read-Host '>'
+                    $pairs += @{ Question = $q; Answer = $answer }
+                    $i++
+                }
+                $userInput = Merge-RefinementAnswers -Raw $rawInput -Pairs $pairs
+                if ($userInput -ne $rawInput) { $refined = $true }
+            }
+            # Mode = 'passthrough' → leave $userInput alone, $refined stays $false.
+        } else {
+            # Refiner failed or returned garbage. Fall back to raw.
+            Write-Host "(refiner sem saida util - usando input cru)" -ForegroundColor DarkGray
+        }
+    }
+}
+
 $cacheKey = Get-CacheKey -Model $Model -Text $userInput
 $xml = $null
 $fromCache = $false
@@ -99,7 +154,10 @@ if (-not $NoCache) {
 }
 
 if (-not $xml) {
-    try { $null = Resolve-Tool 'ollama' } catch {
+    if ($null -eq $ollamaPresent) {
+        try { $null = Resolve-Tool 'ollama'; $ollamaPresent = $true } catch { $ollamaPresent = $false }
+    }
+    if (-not $ollamaPresent) {
         Write-Host "ERRO: ollama nao encontrado no PATH." -ForegroundColor Red
         exit 2
     }
@@ -143,10 +201,12 @@ if (-not $xml) {
 
 # Always record to history (cache hits included, so -Last shows recent context)
 Add-HistoryEntry -Path $script:HistoryPath -Entry @{
-    input  = $userInput
-    model  = $Model
-    xml    = $xml
-    cached = $fromCache
+    rawInput = $rawInput
+    input    = $userInput
+    model    = $Model
+    xml      = $xml
+    cached   = $fromCache
+    refined  = $refined
 }
 
 if ($Raw) {
