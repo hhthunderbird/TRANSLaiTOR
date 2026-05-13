@@ -1,0 +1,22 @@
+# PowerShell / editor noise
+*.swp
+*.bak
+*.tmp
+*.log
+*.original.md
+
+# Local-only state (cache, history)
+.cprompt/
+cache/
+history/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Pester intermediate
+TestResults.xml
