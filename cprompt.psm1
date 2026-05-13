@@ -159,6 +159,7 @@ function Get-RefinerOutput {
             }
         }
         if ($qs.Count -eq 0) { return $null }
+        if ($qs.Count -gt 3) { $qs = $qs[0..2] }
         return @{ Mode = 'questions'; Payload = $qs }
     }
 

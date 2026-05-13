@@ -263,5 +263,21 @@ Describe 'Get-RefinerOutput' {
         $result = Get-RefinerOutput $raw
         $result.Payload.Count | Should Be 3
     }
+
+    It 'caps the question list at 3 even if the model emits more' {
+        $raw = '<questions><q>1?</q><q>2?</q><q>3?</q><q>4?</q><q>5?</q></questions>'
+        $result = Get-RefinerOutput $raw
+        $result.Payload.Count | Should Be 3
+        $result.Payload[0] | Should Be '1?'
+        $result.Payload[2] | Should Be '3?'
+    }
+
+    It 'drops empty <q></q> elements before counting' {
+        $raw = '<questions><q>a?</q><q>   </q><q>b?</q></questions>'
+        $result = Get-RefinerOutput $raw
+        $result.Payload.Count | Should Be 2
+        $result.Payload[0] | Should Be 'a?'
+        $result.Payload[1] | Should Be 'b?'
+    }
 }
 
