@@ -410,3 +410,39 @@ Describe 'Add-MetricEntry' {
         $lines.Count | Should Be 2
     }
 }
+
+Describe 'Read-MetricsFile' {
+    It 'returns an empty array when the file does not exist' {
+        $path = Join-Path $TestDrive 'r1/missing.jsonl'
+        $entries = Read-MetricsFile -Path $path
+        @($entries).Count | Should Be 0
+    }
+
+    It 'parses each non-blank JSONL line into an object' {
+        $path = Join-Path $TestDrive 'r2/metrics.jsonl'
+        Add-MetricEntry -Path $path -Entry @{ mode = 'raw'; totalMs = 1 }
+        Add-MetricEntry -Path $path -Entry @{ mode = 'passthrough'; totalMs = 2 }
+        $entries = @(Read-MetricsFile -Path $path)
+        $entries.Count | Should Be 2
+        $entries[0].mode | Should Be 'raw'
+        $entries[1].totalMs | Should Be 2
+    }
+
+    It 'skips blank lines without erroring' {
+        $path = Join-Path $TestDrive 'r3/metrics.jsonl'
+        Add-MetricEntry -Path $path -Entry @{ mode = 'cache' }
+        Add-Content -LiteralPath $path -Value '' -Encoding UTF8
+        Add-Content -LiteralPath $path -Value '   ' -Encoding UTF8
+        $entries = @(Read-MetricsFile -Path $path)
+        $entries.Count | Should Be 1
+    }
+
+    It 'silently drops lines that fail to parse as JSON' {
+        $path = Join-Path $TestDrive 'r4/metrics.jsonl'
+        Add-MetricEntry -Path $path -Entry @{ mode = 'raw' }
+        Add-Content -LiteralPath $path -Value '{ not json' -Encoding UTF8
+        Add-MetricEntry -Path $path -Entry @{ mode = 'questions' }
+        $entries = @(Read-MetricsFile -Path $path)
+        $entries.Count | Should Be 2
+    }
+}

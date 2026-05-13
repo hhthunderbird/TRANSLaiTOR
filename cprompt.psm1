@@ -140,6 +140,22 @@ function Add-MetricEntry {
     Add-Content -LiteralPath $Path -Value $line -Encoding UTF8
 }
 
+function Read-MetricsFile {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) { return @() }
+    $entries = @()
+    foreach ($line in (Get-Content -LiteralPath $Path -Encoding UTF8)) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        try {
+            $entries += ($line | ConvertFrom-Json)
+        } catch {
+            # Skip lines that fail to parse — partial writes, corruption, etc.
+        }
+    }
+    return $entries
+}
+
 function Test-InputAcceptable {
     [CmdletBinding()]
     param(
@@ -236,6 +252,7 @@ Export-ModuleMember -Function `
     Add-HistoryEntry, `
     Get-LastHistoryEntry, `
     Add-MetricEntry, `
+    Read-MetricsFile, `
     Get-RefinerOutput, `
     Test-RefinerOutput, `
     Merge-RefinementAnswers
