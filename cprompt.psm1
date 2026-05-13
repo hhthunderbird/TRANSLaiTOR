@@ -176,6 +176,7 @@ function Test-RefinerOutput {
     [CmdletBinding()]
     param($Parsed)
     if ($null -eq $Parsed) { return $false }
+    if ($Parsed -isnot [hashtable]) { return $false }
     if (-not $Parsed.ContainsKey('Mode')) { return $false }
     if (-not $Parsed.ContainsKey('Payload')) { return $false }
     switch ($Parsed.Mode) {

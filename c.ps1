@@ -90,17 +90,17 @@ if ($Send) {
 $rawInput = $userInput
 $refined  = $false
 
+# Tri-state cache for ollama PATH lookup: $null = unchecked, $true/$false = result.
+$ollamaPresent = $null
+
 # `-Raw` implies `-NoRefine`: scripted use cannot answer prompts interactively.
 $skipRefiner = $NoRefine -or $Raw
 
 if (-not $skipRefiner) {
-    $refinerAvailable = $true
-    try { $null = Resolve-Tool 'ollama' } catch { $refinerAvailable = $false }
+    try { $null = Resolve-Tool 'ollama'; $ollamaPresent = $true } catch { $ollamaPresent = $false }
 
-    if ($refinerAvailable) {
-        if (-not $Raw) {
-            Write-Host "--- refinando input ($RefinerModel) ---" -ForegroundColor DarkCyan
-        }
+    if ($ollamaPresent) {
+        Write-Host "--- refinando input ($RefinerModel) ---" -ForegroundColor DarkCyan
 
         $prevEAP = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'
@@ -132,10 +132,8 @@ if (-not $skipRefiner) {
             }
             # Mode = 'passthrough' → leave $userInput alone, $refined stays $false.
         } else {
-            # Refiner failed or returned garbage. Fall back silently to raw.
-            if (-not $Raw) {
-                Write-Host "(refiner sem saida util - usando input cru)" -ForegroundColor DarkGray
-            }
+            # Refiner failed or returned garbage. Fall back to raw.
+            Write-Host "(refiner sem saida util - usando input cru)" -ForegroundColor DarkGray
         }
     }
 }
@@ -156,7 +154,10 @@ if (-not $NoCache) {
 }
 
 if (-not $xml) {
-    try { $null = Resolve-Tool 'ollama' } catch {
+    if ($null -eq $ollamaPresent) {
+        try { $null = Resolve-Tool 'ollama'; $ollamaPresent = $true } catch { $ollamaPresent = $false }
+    }
+    if (-not $ollamaPresent) {
         Write-Host "ERRO: ollama nao encontrado no PATH." -ForegroundColor Red
         exit 2
     }
