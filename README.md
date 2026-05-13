@@ -15,7 +15,7 @@ user idea → c.ps1 → Ollama (prompt-opt model) → <task><context><constraint
 1. Install [Ollama](https://ollama.com) and pull base: `ollama pull llama3.2:3b`.
 2. Create the local model:
    ```powershell
-   ollama create prompt-opt -f C:\Users\hhthu\Scripts\ModelFile
+   ollama create prompt-opt -f C:\Users\hhthu\Scripts\Modelfile.compiler
    ```
 3. Put `C:\Users\hhthu\Scripts` on `PATH` and add `.PS1` to `PATHEXT`, or use the
    bundled `c.cmd` shim and put only `C:\Users\hhthu\Scripts` on `PATH`.
@@ -34,7 +34,10 @@ c "..." -Model prompt-opt-other                       # use a different Ollama m
 - `c.ps1` — entrypoint, argument parsing, Ollama call, Claude pipe.
 - `c.cmd` — Windows shim so `c` works in cmd.exe and plain `PATH` setups.
 - `cprompt.psm1` — pure helpers (BOM strip, XML extraction, tool resolution).
-- `ModelFile` — Ollama Modelfile (system prompt + few-shots + decoding params).
+- `Modelfile.compiler` — Ollama Modelfile for the compiler stage
+  (`prompt-opt` model): emits the `<task>/<context>/<constraints>` block.
+- `Modelfile.refiner` — Ollama Modelfile for the refiner stage
+  (`prompt-refiner` model): emits `<passthrough>` or `<questions>`.
 - `Tests/cprompt.Tests.ps1` — Pester v3 unit tests.
 
 ## Run tests
