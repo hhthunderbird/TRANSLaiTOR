@@ -301,5 +301,21 @@ Describe 'Get-RefinerOutput' {
         $result.Payload[0] | Should Be 'x?'
         $result.Payload[1] | Should Be 'y?'
     }
+
+    It 'returns $null on empty input' {
+        (Get-RefinerOutput '') | Should BeNullOrEmpty
+    }
+
+    It 'returns $null when no recognizable envelope is present' {
+        (Get-RefinerOutput 'just some prose, no tags at all') | Should BeNullOrEmpty
+    }
+
+    It 'returns $null when passthrough body is whitespace only' {
+        (Get-RefinerOutput '<passthrough>   </passthrough>') | Should BeNullOrEmpty
+    }
+
+    It 'returns $null when questions body has only empty <q> items' {
+        (Get-RefinerOutput '<questions><q></q><q>   </q></questions>') | Should BeNullOrEmpty
+    }
 }
 
