@@ -189,6 +189,23 @@ function Test-RefinerOutput {
     }
 }
 
+function Merge-RefinementAnswers {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Raw,
+        [Parameter(Mandatory)][AllowEmptyCollection()][hashtable[]]$Pairs
+    )
+    $kept = @()
+    foreach ($pair in $Pairs) {
+        $answer = [string]$pair.Answer
+        if (-not [string]::IsNullOrWhiteSpace($answer)) {
+            $kept += "$($pair.Question): $($answer.Trim())"
+        }
+    }
+    if ($kept.Count -eq 0) { return $Raw }
+    return "$Raw`n`n" + ($kept -join "`n")
+}
+
 Export-ModuleMember -Function `
     Remove-Bom, `
     Get-PromptXml, `
@@ -201,4 +218,5 @@ Export-ModuleMember -Function `
     Add-HistoryEntry, `
     Get-LastHistoryEntry, `
     Get-RefinerOutput, `
-    Test-RefinerOutput
+    Test-RefinerOutput, `
+    Merge-RefinementAnswers

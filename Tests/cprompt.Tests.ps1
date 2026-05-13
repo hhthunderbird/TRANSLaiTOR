@@ -345,3 +345,34 @@ Describe 'Test-RefinerOutput' {
     }
 }
 
+Describe 'Merge-RefinementAnswers' {
+    It 'appends each question/answer pair on its own line, separated from raw' {
+        $result = Merge-RefinementAnswers -Raw 'preciso ajuda com cache' -Pairs @(
+            @{ Question = 'qual stack?'; Answer = 'Python + Redis' }
+            @{ Question = 'leitura ou escrita?'; Answer = 'leitura, 100x mais' }
+        )
+        $expected = "preciso ajuda com cache`n`nqual stack?: Python + Redis`nleitura ou escrita?: leitura, 100x mais"
+        $result | Should Be $expected
+    }
+
+    It 'drops pairs whose answer is empty or whitespace' {
+        $result = Merge-RefinementAnswers -Raw 'x' -Pairs @(
+            @{ Question = 'a?'; Answer = '' }
+            @{ Question = 'b?'; Answer = '   ' }
+            @{ Question = 'c?'; Answer = 'yes' }
+        )
+        $result | Should Be "x`n`nc?: yes"
+    }
+
+    It 'returns the raw input unchanged when all pairs are empty' {
+        $result = Merge-RefinementAnswers -Raw 'x' -Pairs @(
+            @{ Question = 'a?'; Answer = '' }
+        )
+        $result | Should Be 'x'
+    }
+
+    It 'returns the raw input unchanged when Pairs is empty' {
+        (Merge-RefinementAnswers -Raw 'x' -Pairs @()) | Should Be 'x'
+    }
+}
+
