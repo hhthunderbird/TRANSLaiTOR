@@ -55,6 +55,74 @@ function Resolve-Tool {
     return $cmd
 }
 
+function Get-CacheKey {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Model,
+        [Parameter(Mandatory)][string]$Text
+    )
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes("$Model`0$Text")
+    $sha = [System.Security.Cryptography.SHA1]::Create()
+    try {
+        $hash = $sha.ComputeHash($bytes)
+    } finally {
+        $sha.Dispose()
+    }
+    return ([System.BitConverter]::ToString($hash) -replace '-', '').ToLowerInvariant()
+}
+
+function Get-CachedXml {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Key,
+        [Parameter(Mandatory)][string]$CacheDir
+    )
+    $file = Join-Path $CacheDir "$Key.xml"
+    if (-not (Test-Path -LiteralPath $file)) { return $null }
+    return [System.IO.File]::ReadAllText($file, [System.Text.Encoding]::UTF8)
+}
+
+function Set-CachedXml {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Key,
+        [Parameter(Mandatory)][string]$Xml,
+        [Parameter(Mandatory)][string]$CacheDir
+    )
+    if (-not (Test-Path -LiteralPath $CacheDir)) {
+        New-Item -ItemType Directory -Path $CacheDir -Force | Out-Null
+    }
+    $file = Join-Path $CacheDir "$Key.xml"
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($file, $Xml, $utf8NoBom)
+}
+
+function Add-HistoryEntry {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][hashtable]$Entry
+    )
+    $dir = Split-Path -Parent $Path
+    if ($dir -and -not (Test-Path -LiteralPath $dir)) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    }
+    if (-not $Entry.ContainsKey('ts')) {
+        $Entry['ts'] = (Get-Date).ToUniversalTime().ToString('o')
+    }
+    $line = ConvertTo-Json -InputObject $Entry -Compress -Depth 4
+    Add-Content -LiteralPath $Path -Value $line -Encoding UTF8
+}
+
+function Get-LastHistoryEntry {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) { return $null }
+    $lines = @(Get-Content -LiteralPath $Path -Encoding UTF8 | Where-Object { $_.Trim() })
+    if ($lines.Count -eq 0) { return $null }
+    return ($lines[-1] | ConvertFrom-Json)
+}
+
 function Test-InputAcceptable {
     [CmdletBinding()]
     param(
@@ -66,4 +134,14 @@ function Test-InputAcceptable {
     return $true
 }
 
-Export-ModuleMember -Function Remove-Bom, Get-PromptXml, Test-PromptXml, Resolve-Tool, Test-InputAcceptable
+Export-ModuleMember -Function `
+    Remove-Bom, `
+    Get-PromptXml, `
+    Test-PromptXml, `
+    Resolve-Tool, `
+    Test-InputAcceptable, `
+    Get-CacheKey, `
+    Get-CachedXml, `
+    Set-CachedXml, `
+    Add-HistoryEntry, `
+    Get-LastHistoryEntry

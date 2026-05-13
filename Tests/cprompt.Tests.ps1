@@ -143,6 +143,77 @@ Describe 'Resolve-Tool' {
     }
 }
 
+Describe 'Get-CacheKey' {
+    It 'returns deterministic hex hash for same model + input' {
+        $a = Get-CacheKey -Model 'm1' -Text 'hello'
+        $b = Get-CacheKey -Model 'm1' -Text 'hello'
+        $a | Should Be $b
+        $a | Should Match '^[0-9a-f]+$'
+    }
+
+    It 'returns different hash for different input' {
+        $a = Get-CacheKey -Model 'm1' -Text 'hello'
+        $b = Get-CacheKey -Model 'm1' -Text 'world'
+        $a | Should Not Be $b
+    }
+
+    It 'returns different hash for different model with same input' {
+        $a = Get-CacheKey -Model 'm1' -Text 'hello'
+        $b = Get-CacheKey -Model 'm2' -Text 'hello'
+        $a | Should Not Be $b
+    }
+}
+
+Describe 'Cache roundtrip' {
+    It 'returns $null on miss' {
+        $dir = Join-Path $TestDrive 'cache1'
+        (Get-CachedXml -Key 'abc' -CacheDir $dir) | Should BeNullOrEmpty
+    }
+
+    It 'writes and reads the same value' {
+        $dir = Join-Path $TestDrive 'cache2'
+        $xml = '<task>A</task><context>B</context><constraints>C</constraints>'
+        Set-CachedXml -Key 'abc' -Xml $xml -CacheDir $dir
+        (Get-CachedXml -Key 'abc' -CacheDir $dir) | Should Be $xml
+    }
+
+    It 'creates the cache directory if missing' {
+        $dir = Join-Path $TestDrive 'cache3/nested'
+        Set-CachedXml -Key 'k' -Xml 'v' -CacheDir $dir
+        (Test-Path $dir) | Should Be $true
+    }
+}
+
+Describe 'History' {
+    It 'returns $null when history file does not exist' {
+        $path = Join-Path $TestDrive 'h1.jsonl'
+        (Get-LastHistoryEntry -Path $path) | Should BeNullOrEmpty
+    }
+
+    It 'roundtrips a single entry' {
+        $path = Join-Path $TestDrive 'h2.jsonl'
+        Add-HistoryEntry -Path $path -Entry @{ input = 'foo'; xml = '<task>x</task>'; model = 'm1' }
+        $last = Get-LastHistoryEntry -Path $path
+        $last.input | Should Be 'foo'
+        $last.xml | Should Be '<task>x</task>'
+        $last.model | Should Be 'm1'
+    }
+
+    It 'returns the most recent entry when multiple exist' {
+        $path = Join-Path $TestDrive 'h3.jsonl'
+        Add-HistoryEntry -Path $path -Entry @{ input = 'first';  xml = 'x1' }
+        Add-HistoryEntry -Path $path -Entry @{ input = 'second'; xml = 'x2' }
+        Add-HistoryEntry -Path $path -Entry @{ input = 'third';  xml = 'x3' }
+        (Get-LastHistoryEntry -Path $path).input | Should Be 'third'
+    }
+
+    It 'creates the directory for the history file if missing' {
+        $path = Join-Path $TestDrive 'sub/dir/h.jsonl'
+        Add-HistoryEntry -Path $path -Entry @{ input = 'x' }
+        (Test-Path $path) | Should Be $true
+    }
+}
+
 Describe 'Test-InputAcceptable' {
     It 'returns $true for input within limit' {
         (Test-InputAcceptable -Text 'short prompt' -MaxLength 100) | Should Be $true

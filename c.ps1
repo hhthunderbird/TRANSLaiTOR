@@ -3,6 +3,8 @@ param(
     [switch]$Send,
     [switch]$Raw,
     [switch]$Help,
+    [switch]$NoCache,
+    [switch]$Last,
     [string]$Model = 'prompt-opt',
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$Prompt
@@ -12,6 +14,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $script:MaxInputChars = 4000
+$script:StateRoot     = Join-Path $env:USERPROFILE '.cprompt'
+$script:CacheDir      = Join-Path $script:StateRoot 'cache'
+$script:HistoryPath   = Join-Path $script:StateRoot 'history.jsonl'
 
 function Show-Usage {
     @"
@@ -21,10 +26,12 @@ uso:  c <ideia>            distila e copia XML para clipboard
       c <ideia> -Raw       imprime XML em stdout (scriptavel)
       c <ideia> -Send      envia XML direto para claude -p
       c <ideia> -Model X   usa modelo Ollama diferente (default: prompt-opt)
+      c <ideia> -NoCache   ignora cache, forca chamada nova ao Ollama
+      c -Last              imprime ultimo XML do historico, sem chamar Ollama
       c -Help              mostra esta ajuda
 
-limites:
-  input maximo: $script:MaxInputChars caracteres
+estado local: $script:StateRoot
+limites:      input maximo $script:MaxInputChars caracteres
 "@
 }
 
@@ -41,6 +48,24 @@ if ($Help) {
     exit 0
 }
 
+if ($Last) {
+    $entry = Get-LastHistoryEntry -Path $script:HistoryPath
+    if (-not $entry) {
+        Write-Host "ERRO: historico vazio em $script:HistoryPath." -ForegroundColor Red
+        exit 7
+    }
+    if ($Raw) {
+        Write-Output $entry.xml
+    } else {
+        Write-Host "ultimo entry (ts=$($entry.ts), model=$($entry.model)):" -ForegroundColor Cyan
+        Write-Host "input: $($entry.input)" -ForegroundColor DarkGray
+        Write-Host "`n$($entry.xml)`n" -ForegroundColor Gray
+        $entry.xml | Set-Clipboard
+        Write-Host "copiado p/ clipboard." -ForegroundColor Green
+    }
+    exit 0
+}
+
 $userInput = if ($Prompt) { ($Prompt -join ' ').Trim() } else { '' }
 if (-not (Test-InputAcceptable -Text $userInput -MaxLength $script:MaxInputChars)) {
     if (-not $userInput) {
@@ -51,11 +76,6 @@ if (-not (Test-InputAcceptable -Text $userInput -MaxLength $script:MaxInputChars
     exit 1
 }
 
-try { $null = Resolve-Tool 'ollama' } catch {
-    Write-Host "ERRO: ollama nao encontrado no PATH." -ForegroundColor Red
-    exit 2
-}
-
 if ($Send) {
     try { $null = Resolve-Tool 'claude' } catch {
         Write-Host "ERRO: claude CLI nao encontrado no PATH. Use sem -Send (clipboard)." -ForegroundColor Red
@@ -63,36 +83,70 @@ if ($Send) {
     }
 }
 
-if (-not $Raw) {
-    Write-Host "--- destilando prompt local ($Model) ---" -ForegroundColor Cyan
+$cacheKey = Get-CacheKey -Model $Model -Text $userInput
+$xml = $null
+$fromCache = $false
+
+if (-not $NoCache) {
+    $cached = Get-CachedXml -Key $cacheKey -CacheDir $script:CacheDir
+    if ($cached) {
+        $xml = $cached
+        $fromCache = $true
+        if (-not $Raw) {
+            Write-Host "--- cache hit ($Model) ---" -ForegroundColor DarkGreen
+        }
+    }
 }
 
-# Pipe stdin to ollama. Suppress spinner stderr (TTY escapes). Don't let
-# native-cmd stderr trip $ErrorActionPreference=Stop.
-$prevEAP = $ErrorActionPreference
-$ErrorActionPreference = 'Continue'
-$ollamaOutput = ''
-try {
-    $ollamaOutput = ($userInput | & ollama run $Model 2>$null | Out-String)
-} catch {
+if (-not $xml) {
+    try { $null = Resolve-Tool 'ollama' } catch {
+        Write-Host "ERRO: ollama nao encontrado no PATH." -ForegroundColor Red
+        exit 2
+    }
+
+    if (-not $Raw) {
+        Write-Host "--- destilando prompt local ($Model) ---" -ForegroundColor Cyan
+    }
+
+    # Pipe stdin to ollama. Suppress spinner stderr (TTY escapes). Don't let
+    # native-cmd stderr trip $ErrorActionPreference=Stop.
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $ollamaOutput = ''
+    try {
+        $ollamaOutput = ($userInput | & ollama run $Model 2>$null | Out-String)
+    } catch {
+        $ErrorActionPreference = $prevEAP
+        Write-Host "ERRO: falha ao executar ollama: $($_.Exception.Message)" -ForegroundColor Red
+        exit 4
+    }
     $ErrorActionPreference = $prevEAP
-    Write-Host "ERRO: falha ao executar ollama: $($_.Exception.Message)" -ForegroundColor Red
-    exit 4
-}
-$ErrorActionPreference = $prevEAP
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERRO: ollama saiu com codigo $LASTEXITCODE." -ForegroundColor Red
-    Write-Host $ollamaOutput -ForegroundColor DarkGray
-    exit 5
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERRO: ollama saiu com codigo $LASTEXITCODE." -ForegroundColor Red
+        Write-Host $ollamaOutput -ForegroundColor DarkGray
+        exit 5
+    }
+
+    $xml = Get-PromptXml $ollamaOutput
+    if (-not (Test-PromptXml $xml)) {
+        Write-Host "ERRO: saida do otimizador sem XML valido (<task><context><constraints>)." -ForegroundColor Red
+        Write-Host "--- saida bruta ---" -ForegroundColor DarkGray
+        Write-Host $ollamaOutput -ForegroundColor DarkGray
+        exit 6
+    }
+
+    if (-not $NoCache) {
+        Set-CachedXml -Key $cacheKey -Xml $xml -CacheDir $script:CacheDir
+    }
 }
 
-$xml = Get-PromptXml $ollamaOutput
-if (-not (Test-PromptXml $xml)) {
-    Write-Host "ERRO: saida do otimizador sem XML valido (<task><context><constraints>)." -ForegroundColor Red
-    Write-Host "--- saida bruta ---" -ForegroundColor DarkGray
-    Write-Host $ollamaOutput -ForegroundColor DarkGray
-    exit 6
+# Always record to history (cache hits included, so -Last shows recent context)
+Add-HistoryEntry -Path $script:HistoryPath -Entry @{
+    input  = $userInput
+    model  = $Model
+    xml    = $xml
+    cached = $fromCache
 }
 
 if ($Raw) {
