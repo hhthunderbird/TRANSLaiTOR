@@ -103,6 +103,17 @@ Describe 'Get-PromptXml' {
         $result | Should Match '<context>B</context>'
         $result | Should Match '<constraints>C</constraints>'
     }
+
+    It 'preserves literal "0" as valid content (PowerShell truthiness trap)' {
+        $raw = '<task>0</task><context>0</context><constraints>0</constraints>'
+        $result = Get-PromptXml $raw
+        $result | Should Be '<task>0</task><context>0</context><constraints>0</constraints>'
+    }
+
+    It 'returns $null when a tag contains only whitespace' {
+        $raw = "<task>A</task><context>   </context><constraints>C</constraints>"
+        (Get-PromptXml $raw) | Should BeNullOrEmpty
+    }
 }
 
 Describe 'Test-PromptXml' {
@@ -127,7 +138,28 @@ Describe 'Resolve-Tool' {
         $cmd | Should Not BeNullOrEmpty
     }
 
-    It 'throws for missing tool' {
-        { Resolve-Tool 'definitely-not-a-real-tool-xyz-12345' } | Should Throw
+    It 'throws specifically with "Tool ... not found" message' {
+        { Resolve-Tool 'definitely-not-a-real-tool-xyz-12345' } | Should Throw "Tool 'definitely-not-a-real-tool-xyz-12345' not found"
     }
 }
+
+Describe 'Test-InputAcceptable' {
+    It 'returns $true for input within limit' {
+        (Test-InputAcceptable -Text 'short prompt' -MaxLength 100) | Should Be $true
+    }
+
+    It 'returns $false for input over limit' {
+        $long = 'x' * 200
+        (Test-InputAcceptable -Text $long -MaxLength 100) | Should Be $false
+    }
+
+    It 'returns $false for empty or null input' {
+        (Test-InputAcceptable -Text '' -MaxLength 100) | Should Be $false
+        (Test-InputAcceptable -Text $null -MaxLength 100) | Should Be $false
+    }
+
+    It 'returns $false for whitespace-only input' {
+        (Test-InputAcceptable -Text "   `n  `t" -MaxLength 100) | Should Be $false
+    }
+}
+

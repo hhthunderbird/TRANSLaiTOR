@@ -55,4 +55,15 @@ function Resolve-Tool {
     return $cmd
 }
 
-Export-ModuleMember -Function Remove-Bom, Get-PromptXml, Test-PromptXml, Resolve-Tool
+function Test-InputAcceptable {
+    [CmdletBinding()]
+    param(
+        [string]$Text,
+        [Parameter(Mandatory)][int]$MaxLength
+    )
+    if ([string]::IsNullOrWhiteSpace($Text)) { return $false }
+    if ($Text.Length -gt $MaxLength) { return $false }
+    return $true
+}
+
+Export-ModuleMember -Function Remove-Bom, Get-PromptXml, Test-PromptXml, Resolve-Tool, Test-InputAcceptable

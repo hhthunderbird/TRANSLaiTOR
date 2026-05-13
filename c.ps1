@@ -2,6 +2,7 @@
 param(
     [switch]$Send,
     [switch]$Raw,
+    [switch]$Help,
     [string]$Model = 'prompt-opt',
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$Prompt
@@ -9,6 +10,23 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+$script:MaxInputChars = 4000
+
+function Show-Usage {
+    @"
+TRANSLaiTOR - local prompt compiler
+
+uso:  c <ideia>            distila e copia XML para clipboard
+      c <ideia> -Raw       imprime XML em stdout (scriptavel)
+      c <ideia> -Send      envia XML direto para claude -p
+      c <ideia> -Model X   usa modelo Ollama diferente (default: prompt-opt)
+      c -Help              mostra esta ajuda
+
+limites:
+  input maximo: $script:MaxInputChars caracteres
+"@
+}
 
 # Force UTF-8 no-BOM end-to-end (fixes Ollama encoding conflict on Windows)
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
@@ -18,9 +36,18 @@ $OutputEncoding = $utf8NoBom
 
 Import-Module (Join-Path $PSScriptRoot 'cprompt.psm1') -Force
 
+if ($Help) {
+    Show-Usage
+    exit 0
+}
+
 $userInput = if ($Prompt) { ($Prompt -join ' ').Trim() } else { '' }
-if (-not $userInput) {
-    Write-Host "uso: c <ideia>  [-Send] [-Raw] [-Model nome]" -ForegroundColor Yellow
+if (-not (Test-InputAcceptable -Text $userInput -MaxLength $script:MaxInputChars)) {
+    if (-not $userInput) {
+        Show-Usage
+        exit 1
+    }
+    Write-Host "ERRO: input invalido (vazio ou > $script:MaxInputChars chars)." -ForegroundColor Red
     exit 1
 }
 
