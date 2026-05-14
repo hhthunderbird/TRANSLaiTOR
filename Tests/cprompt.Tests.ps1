@@ -376,3 +376,146 @@ Describe 'Merge-RefinementAnswers' {
     }
 }
 
+Describe 'Add-MetricEntry' {
+    It 'creates the directory and writes a JSONL line' {
+        $path = Join-Path $TestDrive 'm1/metrics.jsonl'
+        Add-MetricEntry -Path $path -Entry @{ mode = 'passthrough'; totalMs = 100 }
+        (Test-Path $path) | Should Be $true
+        $lines = @(Get-Content -LiteralPath $path -Encoding UTF8)
+        $lines.Count | Should Be 1
+        $obj = $lines[0] | ConvertFrom-Json
+        $obj.mode | Should Be 'passthrough'
+        $obj.totalMs | Should Be 100
+    }
+
+    It 'auto-injects a UTC ts field when missing' {
+        $path = Join-Path $TestDrive 'm2/metrics.jsonl'
+        Add-MetricEntry -Path $path -Entry @{ mode = 'cache' }
+        $obj = (Get-Content -LiteralPath $path -Encoding UTF8) | ConvertFrom-Json
+        $obj.ts | Should Match '^\d{4}-\d{2}-\d{2}T'
+    }
+
+    It 'preserves a caller-supplied ts field' {
+        $path = Join-Path $TestDrive 'm3/metrics.jsonl'
+        Add-MetricEntry -Path $path -Entry @{ ts = '2020-01-01T00:00:00Z'; mode = 'raw' }
+        $obj = (Get-Content -LiteralPath $path -Encoding UTF8) | ConvertFrom-Json
+        $obj.ts | Should Be '2020-01-01T00:00:00Z'
+    }
+
+    It 'appends additional entries on subsequent calls' {
+        $path = Join-Path $TestDrive 'm4/metrics.jsonl'
+        Add-MetricEntry -Path $path -Entry @{ mode = 'raw' }
+        Add-MetricEntry -Path $path -Entry @{ mode = 'questions' }
+        $lines = @(Get-Content -LiteralPath $path -Encoding UTF8)
+        $lines.Count | Should Be 2
+    }
+}
+
+Describe 'Read-MetricsFile' {
+    It 'returns an empty array when the file does not exist' {
+        $path = Join-Path $TestDrive 'r1/missing.jsonl'
+        $entries = Read-MetricsFile -Path $path
+        @($entries).Count | Should Be 0
+    }
+
+    It 'parses each non-blank JSONL line into an object' {
+        $path = Join-Path $TestDrive 'r2/metrics.jsonl'
+        Add-MetricEntry -Path $path -Entry @{ mode = 'raw'; totalMs = 1 }
+        Add-MetricEntry -Path $path -Entry @{ mode = 'passthrough'; totalMs = 2 }
+        $entries = @(Read-MetricsFile -Path $path)
+        $entries.Count | Should Be 2
+        $entries[0].mode | Should Be 'raw'
+        $entries[1].totalMs | Should Be 2
+    }
+
+    It 'skips blank lines without erroring' {
+        $path = Join-Path $TestDrive 'r3/metrics.jsonl'
+        Add-MetricEntry -Path $path -Entry @{ mode = 'cache' }
+        Add-Content -LiteralPath $path -Value '' -Encoding UTF8
+        Add-Content -LiteralPath $path -Value '   ' -Encoding UTF8
+        $entries = @(Read-MetricsFile -Path $path)
+        $entries.Count | Should Be 1
+    }
+
+    It 'silently drops lines that fail to parse as JSON' {
+        $path = Join-Path $TestDrive 'r4/metrics.jsonl'
+        Add-MetricEntry -Path $path -Entry @{ mode = 'raw' }
+        Add-Content -LiteralPath $path -Value '{ not json' -Encoding UTF8
+        Add-MetricEntry -Path $path -Entry @{ mode = 'questions' }
+        $entries = @(Read-MetricsFile -Path $path)
+        $entries.Count | Should Be 2
+    }
+}
+
+Describe 'Get-MetricsSummary' {
+    It 'returns zeroed summary on empty input' {
+        $s = Get-MetricsSummary -Entries @()
+        $s.Count | Should Be 0
+        $s.CacheHitRate | Should Be 0
+        $s.LatencyP50 | Should Be 0
+        $s.LatencyP95 | Should Be 0
+    }
+
+    It 'computes count and cache hit rate' {
+        $entries = @(
+            @{ mode = 'cache'; totalMs = 5 },
+            @{ mode = 'passthrough'; totalMs = 100 },
+            @{ mode = 'cache'; totalMs = 6 },
+            @{ mode = 'raw'; totalMs = 50 }
+        )
+        $s = Get-MetricsSummary -Entries $entries
+        $s.Count | Should Be 4
+        $s.CacheHitRate | Should Be 0.5
+    }
+
+    It 'computes mode distribution as a hashtable of counts' {
+        $entries = @(
+            @{ mode = 'raw' }, @{ mode = 'raw' }, @{ mode = 'questions' },
+            @{ mode = 'passthrough' }, @{ mode = 'passthrough' }, @{ mode = 'passthrough' }
+        )
+        $s = Get-MetricsSummary -Entries $entries
+        $s.ModeCounts['raw'] | Should Be 2
+        $s.ModeCounts['questions'] | Should Be 1
+        $s.ModeCounts['passthrough'] | Should Be 3
+    }
+
+    It 'computes p50 and p95 of totalMs' {
+        $entries = 1..20 | ForEach-Object { @{ mode = 'passthrough'; totalMs = ($_ * 10) } }
+        $s = Get-MetricsSummary -Entries $entries
+        # 20 entries, values 10..200 step 10.
+        # p50 = element at ceil(0.5 * 20) = 10th -> 100.
+        # p95 = element at ceil(0.95 * 20) = 19th -> 190.
+        $s.LatencyP50 | Should Be 100
+        $s.LatencyP95 | Should Be 190
+    }
+
+    It 'computes average compression ratio over entries with both fields' {
+        $entries = @(
+            @{ mode = 'passthrough'; inputChars = 100; xmlChars = 200 },
+            @{ mode = 'passthrough'; inputChars = 50;  xmlChars = 150 },
+            @{ mode = 'raw';         inputChars = 0;   xmlChars = 0   }
+        )
+        $s = Get-MetricsSummary -Entries $entries
+        # Only the first two entries qualify (inputChars > 0). Ratios: 2.0, 3.0. Mean = 2.5.
+        $s.AvgCompressionRatio | Should Be 2.5
+    }
+}
+
+Describe 'Get-MetricsSummary strict-mode robustness' {
+    It 'tolerates PSCustomObject entries that omit the mode field' {
+        $json = '{"totalMs":50}'
+        $entry = $json | ConvertFrom-Json
+        $s = Get-MetricsSummary -Entries @($entry)
+        $s.Count | Should Be 1
+        $s.ModeCounts['unknown'] | Should Be 1
+    }
+
+    It 'tolerates PSCustomObject entries that omit totalMs and char fields' {
+        $json = '{"mode":"raw"}'
+        $entry = $json | ConvertFrom-Json
+        $s = Get-MetricsSummary -Entries @($entry)
+        $s.Count | Should Be 1
+        $s.LatencyP50 | Should Be 0
+        $s.AvgCompressionRatio | Should Be 0
+    }
+}

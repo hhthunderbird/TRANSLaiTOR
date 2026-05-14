@@ -123,6 +123,103 @@ function Get-LastHistoryEntry {
     return ($lines[-1] | ConvertFrom-Json)
 }
 
+function Add-MetricEntry {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][hashtable]$Entry
+    )
+    $dir = Split-Path -Parent $Path
+    if ($dir -and -not (Test-Path -LiteralPath $dir)) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    }
+    if (-not $Entry.ContainsKey('ts')) {
+        $Entry['ts'] = (Get-Date).ToUniversalTime().ToString('o')
+    }
+    $line = ConvertTo-Json -InputObject $Entry -Compress -Depth 6
+    Add-Content -LiteralPath $Path -Value $line -Encoding UTF8
+}
+
+function Read-MetricsFile {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) { return @() }
+    $entries = @()
+    foreach ($line in (Get-Content -LiteralPath $Path -Encoding UTF8)) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        try {
+            $entries += ($line | ConvertFrom-Json)
+        } catch {
+            # Skip lines that fail to parse — partial writes, corruption, etc.
+        }
+    }
+    return $entries
+}
+
+function Get-MetricsSummary {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Entries
+    )
+
+    $hasField = {
+        param($obj, $name)
+        if ($obj -is [hashtable]) { return $obj.ContainsKey($name) }
+        return $null -ne $obj.PSObject.Properties[$name]
+    }
+
+    $summary = [ordered]@{
+        Count               = $Entries.Count
+        CacheHitRate        = 0.0
+        LatencyP50          = 0
+        LatencyP95          = 0
+        AvgCompressionRatio = 0.0
+        ModeCounts          = @{}
+    }
+
+    if ($Entries.Count -eq 0) { return [pscustomobject]$summary }
+
+    # Cache hit rate.
+    $cacheHits = @($Entries | Where-Object {
+        (& $hasField $_ 'mode') -and $_.mode -eq 'cache'
+    }).Count
+    $summary.CacheHitRate = [math]::Round($cacheHits / $Entries.Count, 4)
+
+    # Mode counts.
+    $modeCounts = @{}
+    foreach ($e in $Entries) {
+        $m = if (& $hasField $e 'mode') { [string]$e.mode } else { '' }
+        if (-not $m) { $m = 'unknown' }
+        if (-not $modeCounts.ContainsKey($m)) { $modeCounts[$m] = 0 }
+        $modeCounts[$m] = $modeCounts[$m] + 1
+    }
+    $summary.ModeCounts = $modeCounts
+
+    # Latency percentiles over totalMs.
+    $latencies = @($Entries |
+        Where-Object { & $hasField $_ 'totalMs' } |
+        ForEach-Object { [int]$_.totalMs } |
+        Sort-Object)
+    if ($latencies.Count -gt 0) {
+        $summary.LatencyP50 = $latencies[[math]::Max(0, [math]::Ceiling(0.50 * $latencies.Count) - 1)]
+        $summary.LatencyP95 = $latencies[[math]::Max(0, [math]::Ceiling(0.95 * $latencies.Count) - 1)]
+    }
+
+    # Average compression ratio (xmlChars / inputChars) over entries with both > 0.
+    $ratios = @($Entries |
+        Where-Object {
+            (& $hasField $_ 'inputChars') -and [int]$_.inputChars -gt 0 -and (& $hasField $_ 'xmlChars')
+        } |
+        ForEach-Object { [double]$_.xmlChars / [double]$_.inputChars })
+    if ($ratios.Count -gt 0) {
+        $sum = 0.0
+        foreach ($r in $ratios) { $sum += $r }
+        $summary.AvgCompressionRatio = [math]::Round($sum / $ratios.Count, 4)
+    }
+
+    return [pscustomobject]$summary
+}
+
 function Test-InputAcceptable {
     [CmdletBinding()]
     param(
@@ -218,6 +315,9 @@ Export-ModuleMember -Function `
     Set-CachedXml, `
     Add-HistoryEntry, `
     Get-LastHistoryEntry, `
+    Add-MetricEntry, `
+    Read-MetricsFile, `
+    Get-MetricsSummary, `
     Get-RefinerOutput, `
     Test-RefinerOutput, `
     Merge-RefinementAnswers

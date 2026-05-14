@@ -47,6 +47,7 @@ c "..." -RefinerModel prompt-refiner-other            # use a different refiner 
 ## Files
 
 - `c.ps1` — entrypoint, argument parsing, Ollama call, Claude pipe.
+- `cstats.ps1` — CLI that summarises `metrics.jsonl`.
 - `c.cmd` — Windows shim so `c` works in cmd.exe and plain `PATH` setups.
 - `cprompt.psm1` — pure helpers (BOM strip, XML extraction, tool resolution).
 - `Modelfile.compiler` — Ollama Modelfile for the compiler stage
@@ -54,6 +55,28 @@ c "..." -RefinerModel prompt-refiner-other            # use a different refiner 
 - `Modelfile.refiner` — Ollama Modelfile for the refiner stage
   (`prompt-refiner` model): emits `<passthrough>` or `<questions>`.
 - `Tests/cprompt.Tests.ps1` — Pester v3 unit tests.
+
+## Metrics
+
+Every run of `c.ps1` appends one JSONL entry to
+`%USERPROFILE%\.cprompt\metrics.jsonl` with timing, mode
+(`raw` / `passthrough` / `questions` / `skip` / `cache`), input/output
+sizes, and the flag set. Failures in the metrics path are swallowed and
+never abort the user-facing run.
+
+Summarise the log with:
+
+```powershell
+.\cstats.ps1            # all entries
+.\cstats.ps1 -Last 50   # last 50 entries only
+```
+
+The summary prints entry count, cache hit rate, p50/p95 of total wall
+time, average `xmlChars / inputChars` ratio, and a per-mode count.
+
+**Caveat:** if `ollama` is missing from `PATH` the compile stage exits
+with code 2 *before* the metric line is written, so failed runs of that
+kind are not logged.
 
 ## Run tests
 

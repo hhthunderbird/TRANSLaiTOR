@@ -87,8 +87,13 @@ if ($Send) {
     }
 }
 
-$rawInput = $userInput
-$refined  = $false
+$rawInput      = $userInput
+$refined       = $false
+$metricMode    = 'raw'   # default: refiner not consulted
+$refinerMs     = 0
+$compilerMs    = 0
+$runStart      = [System.Diagnostics.Stopwatch]::StartNew()
+$metricsPath   = Join-Path $script:StateRoot 'metrics.jsonl'
 
 # Tri-state cache for ollama PATH lookup: $null = unchecked, $true/$false = result.
 $ollamaPresent = $null
@@ -105,11 +110,14 @@ if (-not $skipRefiner) {
         $prevEAP = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'
         $refinerRaw = ''
+        $refinerWatch = [System.Diagnostics.Stopwatch]::StartNew()
         try {
             $refinerRaw = ($userInput | & ollama run $RefinerModel 2>$null | Out-String)
         } catch {
             $refinerRaw = ''
         }
+        $refinerWatch.Stop()
+        $refinerMs = [int]$refinerWatch.ElapsedMilliseconds
         $ErrorActionPreference = $prevEAP
 
         $parsed = $null
@@ -119,6 +127,7 @@ if (-not $skipRefiner) {
 
         if (Test-RefinerOutput $parsed) {
             if ($parsed.Mode -eq 'questions') {
+                $metricMode = 'questions'
                 $pairs = @()
                 $i = 1
                 foreach ($q in $parsed.Payload) {
@@ -129,12 +138,17 @@ if (-not $skipRefiner) {
                 }
                 $userInput = Merge-RefinementAnswers -Raw $rawInput -Pairs $pairs
                 if ($userInput -ne $rawInput) { $refined = $true }
+            } else {
+                # Mode = 'passthrough' → leave $userInput alone, $refined stays $false.
+                $metricMode = 'passthrough'
             }
-            # Mode = 'passthrough' → leave $userInput alone, $refined stays $false.
         } else {
             # Refiner failed or returned garbage. Fall back to raw.
+            $metricMode = 'skip'
             Write-Host "(refiner sem saida util - usando input cru)" -ForegroundColor DarkGray
         }
+    } else {
+        $metricMode = 'skip'
     }
 }
 
@@ -147,6 +161,7 @@ if (-not $NoCache) {
     if ($cached) {
         $xml = $cached
         $fromCache = $true
+        $metricMode = 'cache'
         if (-not $Raw) {
             Write-Host "--- cache hit ($Model) ---" -ForegroundColor DarkGreen
         }
@@ -171,13 +186,17 @@ if (-not $xml) {
     $prevEAP = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     $ollamaOutput = ''
+    $compilerWatch = [System.Diagnostics.Stopwatch]::StartNew()
     try {
         $ollamaOutput = ($userInput | & ollama run $Model 2>$null | Out-String)
     } catch {
+        $compilerWatch.Stop()
         $ErrorActionPreference = $prevEAP
         Write-Host "ERRO: falha ao executar ollama: $($_.Exception.Message)" -ForegroundColor Red
         exit 4
     }
+    $compilerWatch.Stop()
+    $compilerMs = [int]$compilerWatch.ElapsedMilliseconds
     $ErrorActionPreference = $prevEAP
 
     if ($LASTEXITCODE -ne 0) {
@@ -207,6 +226,31 @@ Add-HistoryEntry -Path $script:HistoryPath -Entry @{
     xml      = $xml
     cached   = $fromCache
     refined  = $refined
+}
+
+$runStart.Stop()
+try {
+    $xmlLen = if ($xml) { $xml.Length } else { 0 }
+    $entry = @{
+        model         = $Model
+        refinerModel  = $RefinerModel
+        mode          = $metricMode
+        inputChars    = $rawInput.Length
+        refinedChars  = $userInput.Length
+        xmlChars      = $xmlLen
+        refinerMs     = $refinerMs
+        compilerMs    = $compilerMs
+        totalMs       = [int]$runStart.ElapsedMilliseconds
+        cacheHit      = [bool]$fromCache
+        flags         = @{
+            Raw      = [bool]$Raw
+            NoRefine = [bool]$NoRefine
+            Send     = [bool]$Send
+        }
+    }
+    Add-MetricEntry -Path $metricsPath -Entry $entry
+} catch {
+    # Metrics is best-effort. Never break the user-facing run.
 }
 
 if ($Raw) {
