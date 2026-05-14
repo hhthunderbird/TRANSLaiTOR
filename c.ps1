@@ -214,15 +214,16 @@ if (-not $xml) {
         exit 5
     }
 
-    $xml = Get-PromptXml $ollamaOutput
-    if (-not (Test-PromptXml $xml)) {
-        Write-Host "ERRO: saida do otimizador sem XML valido (<task><context><constraints>)." -ForegroundColor Red
-        Write-Host "--- saida bruta ---" -ForegroundColor DarkGray
+    $xmlCandidate = Get-PromptXml $ollamaOutput
+    $resolved = Resolve-CompilerFallback -Xml $xmlCandidate -RawInput $rawInput
+    $xml = $resolved.Xml
+    if ($resolved.IsFallback) {
+        Write-Host "AVISO: otimizador nao produziu XML valido. Passando texto cru sem destilacao." -ForegroundColor Yellow
+        Write-Host "--- saida bruta do otimizador (descartada) ---" -ForegroundColor DarkGray
         Write-Host $ollamaOutput -ForegroundColor DarkGray
-        exit 6
-    }
-
-    if (-not $NoCache) {
+        $metricMode = 'fallback'
+        # Do not cache the fallback — a future retry may produce real XML.
+    } elseif (-not $NoCache) {
         Set-CachedXml -Key $cacheKey -Xml $xml -CacheDir $script:CacheDir
     }
 }

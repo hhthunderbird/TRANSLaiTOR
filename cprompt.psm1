@@ -56,6 +56,18 @@ function Test-PromptXml {
     return [regex]::IsMatch($Xml, $pattern)
 }
 
+function Resolve-CompilerFallback {
+    [CmdletBinding()]
+    param(
+        [AllowNull()][AllowEmptyString()][string]$Xml,
+        [Parameter(Mandatory)][string]$RawInput
+    )
+    if (Test-PromptXml -Xml $Xml) {
+        return [pscustomobject]@{ Xml = $Xml; IsFallback = $false }
+    }
+    return [pscustomobject]@{ Xml = $RawInput; IsFallback = $true }
+}
+
 function Resolve-Tool {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Name)
@@ -415,6 +427,7 @@ Export-ModuleMember -Function `
     Remove-AnsiEscapes, `
     Get-PromptXml, `
     Test-PromptXml, `
+    Resolve-CompilerFallback, `
     Resolve-Tool, `
     Test-CommandPresent, `
     Invoke-OllamaModel, `
