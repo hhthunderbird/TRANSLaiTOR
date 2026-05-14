@@ -11,11 +11,22 @@ function Remove-Bom {
     return $Text
 }
 
+function Remove-AnsiEscapes {
+    [CmdletBinding()]
+    param([string]$Text)
+    if (-not $Text) { return '' }
+    # Strip ANSI/CSI escape sequences (cursor moves, erase commands, color codes)
+    # that `ollama run` injects for terminal word-wrap. Without this, captured
+    # stdout interleaves visual rewinds into `<q>`/`<task>` bodies.
+    return [regex]::Replace($Text, "`e\[[0-9;]*[A-Za-z]", '')
+}
+
 function Get-PromptXml {
     [CmdletBinding()]
     param([string]$RawOutput)
     if (-not $RawOutput) { return $null }
     $clean = Remove-Bom $RawOutput
+    $clean = Remove-AnsiEscapes $clean
 
     function _extractTag {
         param([string]$Src, [string]$Tag)
@@ -236,6 +247,7 @@ function Get-RefinerOutput {
     param([string]$RawOutput)
     if (-not $RawOutput) { return $null }
     $clean = Remove-Bom $RawOutput
+    $clean = Remove-AnsiEscapes $clean
 
     $passthrough = [regex]::Match($clean, '(?s)<passthrough>(.*?)</\w+>')
     if ($passthrough.Success) {
@@ -306,6 +318,7 @@ function Merge-RefinementAnswers {
 
 Export-ModuleMember -Function `
     Remove-Bom, `
+    Remove-AnsiEscapes, `
     Get-PromptXml, `
     Test-PromptXml, `
     Resolve-Tool, `

@@ -519,3 +519,64 @@ Describe 'Get-MetricsSummary strict-mode robustness' {
         $s.AvgCompressionRatio | Should Be 0
     }
 }
+
+Describe 'Remove-AnsiEscapes' {
+    It 'strips a CSI cursor-back sequence' {
+        (Remove-AnsiEscapes "abc`e[3Dxyz") | Should Be 'abcxyz'
+    }
+
+    It 'strips an erase-to-EOL sequence' {
+        (Remove-AnsiEscapes "abc`e[Kdef") | Should Be 'abcdef'
+    }
+
+    It 'strips SGR color codes' {
+        (Remove-AnsiEscapes "`e[31mred`e[0m") | Should Be 'red'
+    }
+
+    It 'returns identical string when no escape codes are present' {
+        (Remove-AnsiEscapes 'plain text') | Should Be 'plain text'
+    }
+
+    It 'returns empty string for empty input' {
+        (Remove-AnsiEscapes '') | Should Be ''
+    }
+
+    It 'returns empty string for null input' {
+        (Remove-AnsiEscapes $null) | Should Be ''
+    }
+
+    It 'strips the exact wrap sequence reported by ollama run' {
+        # Reproduces the byte pattern that corrupted "ideia vaga" output:
+        # `nív` + CSI cursor-back-19 + CSI erase-EOL + CRLF + `escolher?`.
+        $dirty = "nív`e[19D`e[K`r`nescolher?"
+        (Remove-AnsiEscapes $dirty) | Should Be "nív`r`nescolher?"
+    }
+}
+
+Describe 'Get-RefinerOutput CSI sanitization' {
+    It 'strips embedded CSI escape codes from a single-question payload' {
+        $dirty = "<questions><q>abc`e[3Ddef?</q></questions>"
+        $result = Get-RefinerOutput $dirty
+        $result.Mode | Should Be 'questions'
+        $result.Payload.Count | Should Be 1
+        $result.Payload[0] | Should Be 'abcdef?'
+    }
+
+    It 'strips CSI codes from a passthrough payload' {
+        $dirty = "<passthrough>fix`e[1Dbug now</passthrough>"
+        $result = Get-RefinerOutput $dirty
+        $result.Mode | Should Be 'passthrough'
+        $result.Payload | Should Be 'fixbug now'
+    }
+}
+
+Describe 'Get-PromptXml CSI sanitization' {
+    It 'strips CSI codes that appear inside the XML body' {
+        $dirty = "<task>do`e[1D the thing</task><context>here`e[2D</context><constraints>none</constraints>"
+        $result = Get-PromptXml $dirty
+        $result | Should Match '<task>'
+        ($result -match "`e\[") | Should Be $false
+    }
+}
+
+
