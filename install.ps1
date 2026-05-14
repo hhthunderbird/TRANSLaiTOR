@@ -72,8 +72,8 @@ function Copy-RuntimeFiles {
 function Resolve-OllamaOrFail {
     $cmd = Get-Command 'ollama' -ErrorAction SilentlyContinue
     if (-not $cmd) {
-        Write-Host 'ERRO: ollama nao encontrado no PATH.' -ForegroundColor Red
         Write-Host 'Instale o Ollama MSI primeiro: https://ollama.com' -ForegroundColor Yellow
+        Write-Host (Get-InstallRecoveryHint -Code 2 -Reason 'ollama nao encontrado no PATH' -InstallDir $InstallDir) -ForegroundColor Red
         exit 2
     }
     return $cmd.Source
@@ -93,13 +93,13 @@ function Invoke-OllamaCreate {
         [Parameter(Mandatory)][string]$Modelfile
     )
     if (-not (Test-Path -LiteralPath $Modelfile)) {
-        Write-Host "ERRO: Modelfile nao encontrado: $Modelfile" -ForegroundColor Red
+        Write-Host (Get-InstallRecoveryHint -Code 3 -Reason "Modelfile nao encontrado: $Modelfile" -InstallDir $InstallDir) -ForegroundColor Red
         exit 3
     }
     Write-Host "--- criando modelo $Name ---" -ForegroundColor Cyan
     & ollama create $Name -f $Modelfile
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "ERRO: ollama create $Name falhou (codigo $LASTEXITCODE)." -ForegroundColor Red
+        Write-Host (Get-InstallRecoveryHint -Code 4 -Reason "ollama create $Name falhou (exit $LASTEXITCODE)" -InstallDir $InstallDir) -ForegroundColor Red
         exit 4
     }
 }
@@ -144,7 +144,7 @@ if (Test-OllamaModelPresent -Name $BaseModel) {
     Write-Host "--- baixando $BaseModel (pode demorar uns minutos) ---" -ForegroundColor Cyan
     & ollama pull $BaseModel
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "ERRO: ollama pull $BaseModel falhou (codigo $LASTEXITCODE)." -ForegroundColor Red
+        Write-Host (Get-InstallRecoveryHint -Code 5 -Reason "ollama pull $BaseModel falhou (exit $LASTEXITCODE)" -InstallDir $InstallDir) -ForegroundColor Red
         exit 5
     }
 }
@@ -192,13 +192,13 @@ if (-not $SkipSmoke) {
     $smokeExit = $LASTEXITCODE
     $smokeXml = $smokeOut.Trim()
     if ($smokeExit -ne 0) {
-        Write-Host "ERRO: smoke retornou codigo $smokeExit." -ForegroundColor Red
         Write-Host "stdout: $smokeXml" -ForegroundColor DarkGray
+        Write-Host (Get-InstallRecoveryHint -Code 9 -Reason "smoke c.ps1 retornou exit $smokeExit" -InstallDir $InstallDir) -ForegroundColor Red
         exit 9
     }
     if (-not (Test-PromptXml -Xml $smokeXml)) {
-        Write-Host "ERRO: smoke saiu zero mas output nao casou <task>/<context>/<constraints>." -ForegroundColor Red
         Write-Host "stdout: $smokeXml" -ForegroundColor DarkGray
+        Write-Host (Get-InstallRecoveryHint -Code 9 -Reason 'smoke saiu zero mas output nao casou <task>/<context>/<constraints>' -InstallDir $InstallDir) -ForegroundColor Red
         exit 9
     }
     Write-Host 'smoke OK.' -ForegroundColor Green
