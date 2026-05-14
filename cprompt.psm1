@@ -261,6 +261,11 @@ function Get-RefinerOutput {
     $clean = Remove-AnsiEscapes $clean
 
     $passthrough = [regex]::Match($clean, '(?s)<passthrough>(.*?)</\w+>')
+    if (-not $passthrough.Success) {
+        # `</passthrough>` is an Ollama stop token in Modelfile.refiner, so it
+        # never appears in raw output. Capture to end-of-string instead.
+        $passthrough = [regex]::Match($clean, '(?s)<passthrough>(.*)$')
+    }
     if ($passthrough.Success) {
         $payload = $passthrough.Groups[1].Value.Trim()
         if ([string]::IsNullOrWhiteSpace($payload)) { return $null }
@@ -269,10 +274,9 @@ function Get-RefinerOutput {
 
     $questionsBlock = [regex]::Match($clean, '(?s)<questions>(.*?)</questions>')
     if (-not $questionsBlock.Success) {
-        # Fallback: outer close tag hallucinated. Use greedy match to capture all
-        # inner content up to the last </word> tag. Inner <q> parsing then handles
-        # the rest defensively.
-        $questionsBlock = [regex]::Match($clean, '(?s)<questions>(.*)</\w+>')
+        # `</questions>` is an Ollama stop token; capture to EOF so inner <q>
+        # parsing can find the close tags that actually were emitted.
+        $questionsBlock = [regex]::Match($clean, '(?s)<questions>(.*)$')
     }
     if ($questionsBlock.Success) {
         $inner = $questionsBlock.Groups[1].Value

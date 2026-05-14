@@ -302,6 +302,23 @@ Describe 'Get-RefinerOutput' {
         $result.Payload[1] | Should Be 'y?'
     }
 
+    It 'parses questions when outer close tag is stop-stripped (real refiner output)' {
+        # `</questions>` is an Ollama stop token in Modelfile.refiner, so the
+        # tag never appears in raw output. Reproduces the live failure mode.
+        $raw = "<questions><q>qual stack?</q>`r`n`r`n"
+        $result = Get-RefinerOutput $raw
+        $result.Mode | Should Be 'questions'
+        $result.Payload.Count | Should Be 1
+        $result.Payload[0] | Should Be 'qual stack?'
+    }
+
+    It 'parses passthrough when close tag is stop-stripped (real refiner output)' {
+        $raw = "<passthrough>preserve this</passthrough>".Replace('</passthrough>', "`r`n`r`n")
+        $result = Get-RefinerOutput $raw
+        $result.Mode | Should Be 'passthrough'
+        $result.Payload | Should Be 'preserve this'
+    }
+
     It 'returns $null on empty input' {
         (Get-RefinerOutput '') | Should BeNullOrEmpty
     }
