@@ -92,7 +92,7 @@ function Get-CacheKey {
         [Parameter(Mandatory)][string]$Text
     )
     $bytes = [System.Text.Encoding]::UTF8.GetBytes("$Model`0$Text")
-    $sha = [System.Security.Cryptography.SHA1]::Create()
+    $sha = [System.Security.Cryptography.SHA256]::Create()
     try {
         $hash = $sha.ComputeHash($bytes)
     } finally {

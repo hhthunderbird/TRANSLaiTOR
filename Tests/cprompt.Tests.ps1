@@ -184,6 +184,12 @@ Describe 'Get-CacheKey' {
         $b = Get-CacheKey -Model 'm2' -Text 'hello'
         $a | Should Not Be $b
     }
+
+    It 'returns a 64-character lowercase hex digest (SHA256)' {
+        $key = Get-CacheKey -Model 'm' -Text 't'
+        $key.Length | Should Be 64
+        $key | Should Match '^[0-9a-f]{64}$'
+    }
 }
 
 Describe 'Cache roundtrip' {
