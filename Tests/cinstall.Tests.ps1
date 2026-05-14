@@ -59,3 +59,43 @@ Describe 'Add-PathEntry' {
         Add-PathEntry -PathString 'C:\A;C:\B;' -Entry 'C:\C' | Should Be 'C:\A;C:\B;C:\C'
     }
 }
+
+Describe 'Remove-PathEntry' {
+    It 'removes a middle entry and rejoins with semicolons' {
+        Remove-PathEntry -PathString 'C:\A;C:\B;C:\C' -Entry 'C:\B' | Should Be 'C:\A;C:\C'
+    }
+
+    It 'removes a leading entry' {
+        Remove-PathEntry -PathString 'C:\B;C:\A' -Entry 'C:\B' | Should Be 'C:\A'
+    }
+
+    It 'removes a trailing entry' {
+        Remove-PathEntry -PathString 'C:\A;C:\B' -Entry 'C:\B' | Should Be 'C:\A'
+    }
+
+    It 'returns the PathString unchanged when the entry is absent' {
+        Remove-PathEntry -PathString 'C:\A;C:\B' -Entry 'C:\C' | Should Be 'C:\A;C:\B'
+    }
+
+    It 'matches case-insensitively when removing' {
+        Remove-PathEntry -PathString 'C:\A;C:\Users\hhthu\Scripts;C:\C' -Entry 'c:\users\hhthu\scripts' |
+            Should Be 'C:\A;C:\C'
+    }
+
+    It 'removes all duplicate occurrences' {
+        Remove-PathEntry -PathString 'C:\A;C:\B;C:\B;C:\C' -Entry 'C:\B' | Should Be 'C:\A;C:\C'
+    }
+
+    It 'returns an empty string when only the entry was present' {
+        Remove-PathEntry -PathString 'C:\B' -Entry 'C:\B' | Should Be ''
+    }
+
+    It 'returns an empty string when PathString is null' {
+        Remove-PathEntry -PathString $null -Entry 'C:\B' | Should Be ''
+    }
+
+    It 'preserves a non-matching segment that contains the entry as a substring' {
+        # "C:\B" must NOT remove "C:\Bin".
+        Remove-PathEntry -PathString 'C:\Bin;C:\B' -Entry 'C:\B' | Should Be 'C:\Bin'
+    }
+}
