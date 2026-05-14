@@ -7,9 +7,13 @@
 
 .DESCRIPTION
     Default behaviour: remove prompt-opt / prompt-refiner, drop the
-    install directory from user PATH, drop .PS1 from user PATHEXT.
+    install directory from user PATH, drop .PS1 from user PATHEXT,
+    and remove the /c slash command file from the Claude Code
+    commands directory.
     -InstallDir   overrides the install directory removed from PATH
                   (default %USERPROFILE%\Scripts, matching install.ps1).
+    -CommandsDir  overrides the Claude Code commands directory where
+                  c.md was installed (default %USERPROFILE%\.claude\commands).
     -PurgeBase    additionally removes llama3.2:3b.
     -PurgeState   additionally deletes %USERPROFILE%\.cprompt (cache,
                   history, metrics).
@@ -23,6 +27,7 @@ param(
     [string]$CompilerName = 'prompt-opt',
     [string]$RefinerName  = 'prompt-refiner',
     [string]$InstallDir   = (Join-Path $env:USERPROFILE 'Scripts'),
+    [string]$CommandsDir  = (Join-Path $env:USERPROFILE '.claude\commands'),
     [switch]$PurgeBase,
     [switch]$PurgeState,
     [switch]$PurgeInstall,
@@ -75,11 +80,13 @@ function Update-UserEnv {
 }
 
 # --- Confirm ---
+$cmdFile = Join-Path $CommandsDir 'c.md'
 $summary = @(
     "remover modelo $CompilerName",
     "remover modelo $RefinerName",
     "remover $InstallDir do PATH (user)",
-    'remover .PS1 do PATHEXT (user)'
+    'remover .PS1 do PATHEXT (user)',
+    "remover slash command $cmdFile (se presente)"
 )
 if ($PurgeBase)    { $summary += "remover base model $BaseModel" }
 if ($PurgeState)   { $summary += "apagar $env:USERPROFILE\.cprompt (cache+history+metrics)" }
@@ -100,6 +107,14 @@ if ($newPath -ne $userPath) {
     Write-Host "PATH (user) limpo: $InstallDir removido." -ForegroundColor DarkGreen
 } else {
     Write-Host "PATH (user) nao continha $InstallDir." -ForegroundColor DarkGray
+}
+
+# --- Slash command ---
+if (Test-Path -LiteralPath $cmdFile) {
+    Remove-Item -LiteralPath $cmdFile -Force
+    Write-Host "slash command $cmdFile removido." -ForegroundColor DarkGreen
+} else {
+    Write-Host "slash command $cmdFile nao existia." -ForegroundColor DarkGray
 }
 
 # --- PATHEXT ---

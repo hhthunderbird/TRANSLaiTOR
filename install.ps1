@@ -19,7 +19,9 @@ param(
     [string]$CompilerName = 'prompt-opt',
     [string]$RefinerName  = 'prompt-refiner',
     [string]$InstallDir   = (Join-Path $env:USERPROFILE 'Scripts'),
+    [string]$CommandsDir  = (Join-Path $env:USERPROFILE '.claude\commands'),
     [switch]$NoPathExt,
+    [switch]$NoSlashCommand,
     [switch]$SkipSmoke
 )
 
@@ -113,6 +115,23 @@ function Update-UserEnv {
 # --- Step 0: copy runtime files to install dir ---
 Write-Host "--- copiando runtime para $InstallDir ---" -ForegroundColor Cyan
 Copy-RuntimeFiles -Source $here -Destination $InstallDir -Files $RuntimeFiles
+
+# --- Step 0b: install /c slash command for Claude Code ---
+if (-not $NoSlashCommand) {
+    $cmdSrc = Join-Path $here 'commands\c.md'
+    if (Test-Path -LiteralPath $cmdSrc) {
+        if (-not (Test-Path -LiteralPath $CommandsDir)) {
+            New-Item -ItemType Directory -Path $CommandsDir -Force | Out-Null
+            Write-Host "criado $CommandsDir" -ForegroundColor DarkGreen
+        }
+        Copy-Item -LiteralPath $cmdSrc -Destination $CommandsDir -Force
+        Write-Host "slash command instalado: $CommandsDir\c.md" -ForegroundColor DarkGreen
+    } else {
+        Write-Host "AVISO: commands\c.md ausente no source ($cmdSrc), pulando slash command." -ForegroundColor Yellow
+    }
+} else {
+    Write-Host '(pulando slash command /c por -NoSlashCommand)' -ForegroundColor DarkGray
+}
 
 # --- Step 1: ollama present? ---
 $null = Resolve-OllamaOrFail
