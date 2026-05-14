@@ -18,4 +18,18 @@ function Test-PathContainsEntry {
     return $false
 }
 
-Export-ModuleMember -Function Test-PathContainsEntry
+function Add-PathEntry {
+    [CmdletBinding()]
+    param(
+        [AllowNull()][AllowEmptyString()][string]$PathString,
+        [Parameter(Mandatory)][string]$Entry
+    )
+    if ([string]::IsNullOrEmpty($PathString)) { return $Entry }
+    if (Test-PathContainsEntry -PathString $PathString -Entry $Entry) {
+        return $PathString
+    }
+    $trimmed = $PathString.TrimEnd(';')
+    return "$trimmed;$Entry"
+}
+
+Export-ModuleMember -Function Test-PathContainsEntry, Add-PathEntry
