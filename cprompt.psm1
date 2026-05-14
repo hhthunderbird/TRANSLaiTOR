@@ -162,6 +162,12 @@ function Get-MetricsSummary {
         [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Entries
     )
 
+    $hasField = {
+        param($obj, $name)
+        if ($obj -is [hashtable]) { return $obj.ContainsKey($name) }
+        return $null -ne $obj.PSObject.Properties[$name]
+    }
+
     $summary = [ordered]@{
         Count               = $Entries.Count
         CacheHitRate        = 0.0
@@ -174,13 +180,15 @@ function Get-MetricsSummary {
     if ($Entries.Count -eq 0) { return [pscustomobject]$summary }
 
     # Cache hit rate.
-    $cacheHits = @($Entries | Where-Object { $_.mode -eq 'cache' }).Count
+    $cacheHits = @($Entries | Where-Object {
+        (& $hasField $_ 'mode') -and $_.mode -eq 'cache'
+    }).Count
     $summary.CacheHitRate = [math]::Round($cacheHits / $Entries.Count, 4)
 
     # Mode counts.
     $modeCounts = @{}
     foreach ($e in $Entries) {
-        $m = [string]$e.mode
+        $m = if (& $hasField $e 'mode') { [string]$e.mode } else { '' }
         if (-not $m) { $m = 'unknown' }
         if (-not $modeCounts.ContainsKey($m)) { $modeCounts[$m] = 0 }
         $modeCounts[$m] = $modeCounts[$m] + 1
@@ -189,7 +197,7 @@ function Get-MetricsSummary {
 
     # Latency percentiles over totalMs.
     $latencies = @($Entries |
-        Where-Object { if ($_ -is [hashtable]) { $_.ContainsKey('totalMs') } else { $null -ne $_.PSObject.Properties['totalMs'] } } |
+        Where-Object { & $hasField $_ 'totalMs' } |
         ForEach-Object { [int]$_.totalMs } |
         Sort-Object)
     if ($latencies.Count -gt 0) {
@@ -200,11 +208,7 @@ function Get-MetricsSummary {
     # Average compression ratio (xmlChars / inputChars) over entries with both > 0.
     $ratios = @($Entries |
         Where-Object {
-            if ($_ -is [hashtable]) {
-                $_.ContainsKey('inputChars') -and [int]$_.inputChars -gt 0 -and $_.ContainsKey('xmlChars')
-            } else {
-                $null -ne $_.PSObject.Properties['inputChars'] -and [int]$_.inputChars -gt 0 -and $null -ne $_.PSObject.Properties['xmlChars']
-            }
+            (& $hasField $_ 'inputChars') -and [int]$_.inputChars -gt 0 -and (& $hasField $_ 'xmlChars')
         } |
         ForEach-Object { [double]$_.xmlChars / [double]$_.inputChars })
     if ($ratios.Count -gt 0) {

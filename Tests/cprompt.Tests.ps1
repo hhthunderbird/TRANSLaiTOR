@@ -500,3 +500,22 @@ Describe 'Get-MetricsSummary' {
         $s.AvgCompressionRatio | Should Be 2.5
     }
 }
+
+Describe 'Get-MetricsSummary strict-mode robustness' {
+    It 'tolerates PSCustomObject entries that omit the mode field' {
+        $json = '{"totalMs":50}'
+        $entry = $json | ConvertFrom-Json
+        $s = Get-MetricsSummary -Entries @($entry)
+        $s.Count | Should Be 1
+        $s.ModeCounts['unknown'] | Should Be 1
+    }
+
+    It 'tolerates PSCustomObject entries that omit totalMs and char fields' {
+        $json = '{"mode":"raw"}'
+        $entry = $json | ConvertFrom-Json
+        $s = Get-MetricsSummary -Entries @($entry)
+        $s.Count | Should Be 1
+        $s.LatencyP50 | Should Be 0
+        $s.AvgCompressionRatio | Should Be 0
+    }
+}
