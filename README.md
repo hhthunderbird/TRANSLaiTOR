@@ -23,17 +23,28 @@ user idea → c.ps1 → Ollama (prompt-opt model) → <task><context><constraint
 
 ### Scripted install (recommended)
 
-After installing the Ollama MSI from <https://ollama.com>, clone the repo
-and run:
+The repo is split into two locations:
+
+- **Source / dev tree** — where you cloned the repo (e.g. `C:\Projetos\TRANSLaiTOR`).
+  Contains `.git`, tests, plans, README. Not on `PATH`.
+- **Install dir** — where `install.ps1` copies the runtime files
+  (`c.ps1`, `c.cmd`, `cprompt.psm1`, `cstats.ps1`, `cinstall.psm1`,
+  the two `Modelfile.*`, and `uninstall.ps1`). On `PATH`. Default:
+  `%USERPROFILE%\Scripts`.
+
+After installing the Ollama MSI from <https://ollama.com>, clone the
+repo anywhere outside the install dir and run `install.ps1` from there:
 
 ```powershell
-git clone https://github.com/hhthunderbird/TRANSLaiTOR.git $env:USERPROFILE\Scripts
-& $env:USERPROFILE\Scripts\install.ps1
+git clone https://github.com/hhthunderbird/TRANSLaiTOR.git C:\Projetos\TRANSLaiTOR
+& C:\Projetos\TRANSLaiTOR\install.ps1
 ```
 
-The installer is idempotent: re-running it is safe and skips
-already-completed steps. Switches:
+The installer is idempotent: re-running it re-copies the runtime files
+and skips already-completed env changes. Switches:
 
+- `-InstallDir <path>` — override the install target (default
+  `%USERPROFILE%\Scripts`).
 - `-NoPathExt` — skip registering `.PS1` in `PATHEXT` (use the bundled
   `c.cmd` shim instead).
 - `-SkipSmoke` — skip the post-install `c -NoRefine -Raw 'test input'`
@@ -41,12 +52,13 @@ already-completed steps. Switches:
 
 ### Manual install
 
-The instructions below assume the repo lives at `%USERPROFILE%\Scripts`. Substitute
-your own path if you cloned elsewhere.
+The instructions below assume the dev tree lives at
+`C:\Projetos\TRANSLaiTOR` and the install dir is `%USERPROFILE%\Scripts`.
+Substitute your own paths if different.
 
-1. **Clone the repo.**
+1. **Clone the repo into a dev location.**
    ```powershell
-   git clone https://github.com/hhthunderbird/TRANSLaiTOR.git $env:USERPROFILE\Scripts
+   git clone https://github.com/hhthunderbird/TRANSLaiTOR.git C:\Projetos\TRANSLaiTOR
    ```
 
 2. **Install Ollama** from <https://ollama.com> and confirm it is on `PATH`:
@@ -61,15 +73,28 @@ your own path if you cloned elsewhere.
 
 4. **Build the two local models** from the bundled Modelfiles:
    ```powershell
-   ollama create prompt-opt      -f $env:USERPROFILE\Scripts\Modelfile.compiler
-   ollama create prompt-refiner  -f $env:USERPROFILE\Scripts\Modelfile.refiner
+   ollama create prompt-opt      -f C:\Projetos\TRANSLaiTOR\Modelfile.compiler
+   ollama create prompt-refiner  -f C:\Projetos\TRANSLaiTOR\Modelfile.refiner
    ```
    Verify:
    ```powershell
    ollama list   # expect rows for prompt-opt and prompt-refiner
    ```
 
-5. **Put the scripts directory on `PATH`.** Pick ONE of:
+5. **Copy runtime files to the install dir** (`%USERPROFILE%\Scripts`):
+   ```powershell
+   New-Item -ItemType Directory -Force $env:USERPROFILE\Scripts | Out-Null
+   Copy-Item C:\Projetos\TRANSLaiTOR\c.ps1,
+             C:\Projetos\TRANSLaiTOR\c.cmd,
+             C:\Projetos\TRANSLaiTOR\cprompt.psm1,
+             C:\Projetos\TRANSLaiTOR\cstats.ps1,
+             C:\Projetos\TRANSLaiTOR\cinstall.psm1,
+             C:\Projetos\TRANSLaiTOR\Modelfile.compiler,
+             C:\Projetos\TRANSLaiTOR\Modelfile.refiner,
+             C:\Projetos\TRANSLaiTOR\uninstall.ps1 $env:USERPROFILE\Scripts -Force
+   ```
+
+6. **Put the install dir on `PATH`.** Pick ONE of:
    - **Option A — PowerShell-native.** Add `%USERPROFILE%\Scripts` to `PATH` AND add `.PS1` to `PATHEXT` (System Properties → Environment Variables). After restarting the shell:
      ```powershell
      c -Help
@@ -79,11 +104,11 @@ your own path if you cloned elsewhere.
      c -Help
      ```
 
-6. **First-run smoke test.**
+7. **First-run smoke test.**
    ```powershell
    c -NoRefine "test input" -Raw
    ```
-   Expected: a `<task>...</task><context>...</context><constraints>...</constraints>` block printed to stdout. If you see `ERRO: ollama nao encontrado` step 2 or 5 needs fixing.
+   Expected: a `<task>...</task><context>...</context><constraints>...</constraints>` block printed to stdout. If you see `ERRO: ollama nao encontrado` step 2 or 6 needs fixing.
 
 ## Uninstall
 
@@ -94,13 +119,17 @@ your own path if you cloned elsewhere.
 By default the uninstaller removes the two local models and reverts the
 PATH/PATHEXT entries the installer added. Optional purges:
 
-- `-PurgeBase`  — also removes the `llama3.2:3b` base model.
-- `-PurgeState` — also deletes `%USERPROFILE%\.cprompt\` (cache, history,
+- `-InstallDir <path>` — override the install dir removed from `PATH`
+  (default `%USERPROFILE%\Scripts`, matching `install.ps1`).
+- `-PurgeBase`    — also removes the `llama3.2:3b` base model.
+- `-PurgeState`   — also deletes `%USERPROFILE%\.cprompt\` (cache, history,
   metrics). Irreversible.
-- `-Force`      — skip the confirmation prompt.
+- `-PurgeInstall` — also deletes the runtime files copied into the
+  install dir (and removes the dir if it ends up empty).
+- `-Force`        — skip the confirmation prompt.
 
-The script never deletes the repo directory itself — remove that
-manually when you are done.
+The uninstaller never touches the dev tree (where you cloned the repo) —
+remove that manually when you are done.
 
 ## Usage
 
@@ -197,7 +226,7 @@ kind are not logged.
 ## Run tests
 
 ```powershell
-Invoke-Pester C:\Users\hhthu\Scripts\Tests
+Invoke-Pester C:\Projetos\TRANSLaiTOR\Tests
 ```
 
 ## Troubleshooting

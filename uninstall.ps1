@@ -2,14 +2,19 @@
 .SYNOPSIS
     Removes TRANSLaiTOR's local Ollama models and reverts the user-level
     PATH/PATHEXT changes made by install.ps1. Optional switches purge
-    the llama3.2:3b base model and the local state directory.
+    the llama3.2:3b base model, the local state directory, and the
+    install directory's runtime files.
 
 .DESCRIPTION
     Default behaviour: remove prompt-opt / prompt-refiner, drop the
-    scripts directory from user PATH, drop .PS1 from user PATHEXT.
+    install directory from user PATH, drop .PS1 from user PATHEXT.
+    -InstallDir   overrides the install directory removed from PATH
+                  (default %USERPROFILE%\Scripts, matching install.ps1).
     -PurgeBase    additionally removes llama3.2:3b.
     -PurgeState   additionally deletes %USERPROFILE%\.cprompt (cache,
                   history, metrics).
+    -PurgeInstall additionally deletes the runtime files copied into
+                  the install directory by install.ps1.
     -Force        skips the per-step confirmation prompt.
 #>
 [CmdletBinding()]
@@ -17,8 +22,10 @@ param(
     [string]$BaseModel    = 'llama3.2:3b',
     [string]$CompilerName = 'prompt-opt',
     [string]$RefinerName  = 'prompt-refiner',
+    [string]$InstallDir   = (Join-Path $env:USERPROFILE 'Scripts'),
     [switch]$PurgeBase,
     [switch]$PurgeState,
+    [switch]$PurgeInstall,
     [switch]$Force
 )
 
@@ -71,11 +78,12 @@ function Update-UserEnv {
 $summary = @(
     "remover modelo $CompilerName",
     "remover modelo $RefinerName",
-    "remover $here do PATH (user)",
+    "remover $InstallDir do PATH (user)",
     'remover .PS1 do PATHEXT (user)'
 )
-if ($PurgeBase)  { $summary += "remover base model $BaseModel" }
-if ($PurgeState) { $summary += "apagar $env:USERPROFILE\.cprompt (cache+history+metrics)" }
+if ($PurgeBase)    { $summary += "remover base model $BaseModel" }
+if ($PurgeState)   { $summary += "apagar $env:USERPROFILE\.cprompt (cache+history+metrics)" }
+if ($PurgeInstall) { $summary += "apagar runtime files em $InstallDir" }
 Write-Host 'desinstalacao planejada:' -ForegroundColor Cyan
 foreach ($line in $summary) { Write-Host "  - $line" }
 Confirm-Or-Exit 'prosseguir?'
@@ -86,12 +94,12 @@ Remove-OllamaModel -Name $RefinerName
 
 # --- PATH ---
 $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-$newPath  = Remove-PathEntry -PathString $userPath -Entry $here
+$newPath  = Remove-PathEntry -PathString $userPath -Entry $InstallDir
 if ($newPath -ne $userPath) {
     Update-UserEnv -Name 'Path' -NewValue $newPath
-    Write-Host "PATH (user) limpo: $here removido." -ForegroundColor DarkGreen
+    Write-Host "PATH (user) limpo: $InstallDir removido." -ForegroundColor DarkGreen
 } else {
-    Write-Host "PATH (user) nao continha $here." -ForegroundColor DarkGray
+    Write-Host "PATH (user) nao continha $InstallDir." -ForegroundColor DarkGray
 }
 
 # --- PATHEXT ---
@@ -117,6 +125,33 @@ if ($PurgeState) {
         Write-Host "$stateDir apagado." -ForegroundColor DarkGreen
     } else {
         Write-Host "$stateDir nao existia." -ForegroundColor DarkGray
+    }
+}
+
+# --- Install directory runtime files (opt-in) ---
+if ($PurgeInstall) {
+    $RuntimeFiles = @(
+        'c.ps1','c.cmd','cprompt.psm1','cstats.ps1',
+        'cinstall.psm1','Modelfile.compiler','Modelfile.refiner',
+        'uninstall.ps1'
+    )
+    if (Test-Path -LiteralPath $InstallDir) {
+        foreach ($file in $RuntimeFiles) {
+            $target = Join-Path $InstallDir $file
+            if (Test-Path -LiteralPath $target) {
+                Remove-Item -LiteralPath $target -Force
+            }
+        }
+        Write-Host "runtime files em $InstallDir apagados." -ForegroundColor DarkGreen
+        $remaining = @(Get-ChildItem -LiteralPath $InstallDir -Force -ErrorAction SilentlyContinue)
+        if ($remaining.Count -eq 0) {
+            Remove-Item -LiteralPath $InstallDir -Force
+            Write-Host "$InstallDir (vazio) removido." -ForegroundColor DarkGreen
+        } else {
+            Write-Host "$InstallDir contem outros arquivos, preservado." -ForegroundColor DarkGray
+        }
+    } else {
+        Write-Host "$InstallDir nao existia." -ForegroundColor DarkGray
     }
 }
 
