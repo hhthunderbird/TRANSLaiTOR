@@ -116,6 +116,39 @@ Describe 'Get-PromptXml' {
     }
 }
 
+Describe 'Resolve-CompilerFallback' {
+    It 'returns the XML and IsFallback=$false when XML is valid' {
+        $valid = '<task>A</task><context>B</context><constraints>C</constraints>'
+        $res = Resolve-CompilerFallback -Xml $valid -RawInput 'whatever'
+        $res.Xml         | Should Be $valid
+        $res.IsFallback  | Should Be $false
+    }
+
+    It 'returns RawInput and IsFallback=$true when XML is empty' {
+        $res = Resolve-CompilerFallback -Xml '' -RawInput 'usuario digitou isso'
+        $res.Xml         | Should Be 'usuario digitou isso'
+        $res.IsFallback  | Should Be $true
+    }
+
+    It 'returns RawInput and IsFallback=$true when XML is null' {
+        $res = Resolve-CompilerFallback -Xml $null -RawInput 'pergunta meta'
+        $res.Xml         | Should Be 'pergunta meta'
+        $res.IsFallback  | Should Be $true
+    }
+
+    It 'returns RawInput and IsFallback=$true when XML lacks the required tag triple' {
+        $res = Resolve-CompilerFallback -Xml '<nao disponivel></nau>' -RawInput 'fallback me'
+        $res.Xml         | Should Be 'fallback me'
+        $res.IsFallback  | Should Be $true
+    }
+
+    It 'returns RawInput and IsFallback=$true when XML is prose without tags' {
+        $res = Resolve-CompilerFallback -Xml 'desculpe, nao posso responder isso.' -RawInput 'original'
+        $res.Xml         | Should Be 'original'
+        $res.IsFallback  | Should Be $true
+    }
+}
+
 Describe 'Test-PromptXml' {
     It 'returns $true for valid three-tag block' {
         $xml = '<task>A</task><context>B</context><constraints>C</constraints>'
