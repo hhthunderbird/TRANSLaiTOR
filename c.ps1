@@ -101,6 +101,30 @@ $ollamaPresent = $null
 # `-Raw` implies `-NoRefine`: scripted use cannot answer prompts interactively.
 $skipRefiner = $NoRefine -or $Raw
 
+# Zero-signal pre-gate: inputs with <4 words give the 3B refiner nothing to
+# work with, so it hallucinates a topic. Ask 3 canned scope questions
+# deterministically, merge answers, then skip the model refiner entirely.
+if (-not $skipRefiner -and (Test-InputIsZeroSignal -Text $userInput)) {
+    Write-Host '--- input muito vago, coletando contexto ---' -ForegroundColor DarkCyan
+    $cannedQs = @(
+        'qual area (backend, frontend, devops, dados, jogos, outro)?',
+        'qual problema concreto?',
+        'qual stack/linguagem alvo?'
+    )
+    $pairs = @()
+    $i = 1
+    foreach ($q in $cannedQs) {
+        Write-Host "$i) $q" -ForegroundColor Yellow
+        $answer = Read-Host '>'
+        $pairs += @{ Question = $q; Answer = $answer }
+        $i++
+    }
+    $userInput = Merge-RefinementAnswers -Raw $rawInput -Pairs $pairs
+    if ($userInput -ne $rawInput) { $refined = $true }
+    $metricMode = 'pregate'
+    $skipRefiner = $true
+}
+
 if (-not $skipRefiner) {
     try { $null = Resolve-Tool 'ollama'; $ollamaPresent = $true } catch { $ollamaPresent = $false }
 

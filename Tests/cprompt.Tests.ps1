@@ -579,4 +579,47 @@ Describe 'Get-PromptXml CSI sanitization' {
     }
 }
 
+Describe 'Test-InputIsZeroSignal' {
+    It 'returns $true for null input' {
+        (Test-InputIsZeroSignal -Text $null) | Should Be $true
+    }
+
+    It 'returns $true for empty string' {
+        (Test-InputIsZeroSignal -Text '') | Should Be $true
+    }
+
+    It 'returns $true for whitespace-only input' {
+        (Test-InputIsZeroSignal -Text '   ') | Should Be $true
+    }
+
+    It 'returns $true for a single word' {
+        (Test-InputIsZeroSignal -Text 'ajuda') | Should Be $true
+    }
+
+    It 'returns $true for two words' {
+        (Test-InputIsZeroSignal -Text 'ideia vaga') | Should Be $true
+    }
+
+    It 'returns $true for three words' {
+        (Test-InputIsZeroSignal -Text 'preciso de algo') | Should Be $true
+    }
+
+    It 'returns $false for exactly four words' {
+        (Test-InputIsZeroSignal -Text 'cache lru em go') | Should Be $false
+    }
+
+    It 'returns $false for five or more words' {
+        (Test-InputIsZeroSignal -Text 'implementa um servidor http em rust') | Should Be $false
+    }
+
+    It 'collapses multiple whitespace runs when counting' {
+        (Test-InputIsZeroSignal -Text "ideia    vaga`tagora") | Should Be $true
+    }
+
+    It 'respects custom MinWords threshold' {
+        (Test-InputIsZeroSignal -Text 'cache lru go' -MinWords 3) | Should Be $false
+        (Test-InputIsZeroSignal -Text 'cache lru' -MinWords 3)    | Should Be $true
+    }
+}
+
 
