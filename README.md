@@ -45,8 +45,13 @@ and skips already-completed env changes. Switches:
 
 - `-InstallDir <path>` — override the install target (default
   `%USERPROFILE%\Scripts`).
+- `-CommandsDir <path>` — override the Claude Code commands directory
+  the `/c` slash command file is copied into (default
+  `%USERPROFILE%\.claude\commands`).
 - `-NoPathExt` — skip registering `.PS1` in `PATHEXT` (use the bundled
   `c.cmd` shim instead).
+- `-NoSlashCommand` — skip installing the `/c` slash command for Claude
+  Code.
 - `-SkipSmoke` — skip the post-install `c -NoRefine -Raw 'test input'`
   invocation.
 
@@ -121,6 +126,9 @@ PATH/PATHEXT entries the installer added. Optional purges:
 
 - `-InstallDir <path>` — override the install dir removed from `PATH`
   (default `%USERPROFILE%\Scripts`, matching `install.ps1`).
+- `-CommandsDir <path>` — override the Claude Code commands directory
+  the `/c` slash command file is removed from (default
+  `%USERPROFILE%\.claude\commands`).
 - `-PurgeBase`    — also removes the `llama3.2:3b` base model.
 - `-PurgeState`   — also deletes `%USERPROFILE%\.cprompt\` (cache, history,
   metrics). Irreversible.
@@ -146,6 +154,29 @@ c "..." -RefinerModel prompt-refiner-other   # use a different refiner model
 c -Last                                      # print the most recent XML from history
 c -Help                                      # show usage banner
 ```
+
+### Inside Claude Code (`/c` slash command)
+
+`install.ps1` copies a `/c` slash command file to
+`%USERPROFILE%\.claude\commands\c.md`. Inside a Claude Code session,
+typing `/c <prompt text>` runs `c.cmd -NoRefine -Raw <prompt text>` and
+sends only the resulting XML block to Claude — your raw text is
+replaced by the distilled `<task>/<context>/<constraints>`.
+
+```
+/c quero implementar cache LRU em Go com ttl
+```
+
+Restart Claude Code after install for the new command to appear in the
+slash menu.
+
+Limitations:
+
+- The argument string is passed unquoted to `c.cmd`. Prompts with
+  characters the shell treats specially (`"`, backticks, `$`, `|`, `;`)
+  may not survive intact — escape them or fall back to the terminal CLI.
+- Refiner Q&A is bypassed (`-NoRefine`). Use the terminal CLI when you
+  want the refiner to ask follow-up questions.
 
 ### Typical session
 
@@ -193,6 +224,8 @@ PS> c "preciso de cache lru com ttl em go"
 - `uninstall.ps1` — reverses `install.ps1`; optional `-PurgeBase` / `-PurgeState`.
 - `cinstall.psm1` — pure helpers for PATH-string manipulation.
 - `c.cmd` — Windows shim so `c` works in cmd.exe and plain `PATH` setups.
+- `commands/c.md` — `/c` slash command file for Claude Code, copied by
+  `install.ps1` to `%USERPROFILE%\.claude\commands\c.md`.
 - `cprompt.psm1` — pure helpers (BOM strip, XML extraction, tool resolution).
 - `Modelfile.compiler` — Ollama Modelfile for the compiler stage
   (`prompt-opt` model): emits the `<task>/<context>/<constraints>` block.
