@@ -81,11 +81,17 @@ function Update-UserEnv {
 
 # --- Confirm ---
 $cmdFile = Join-Path $CommandsDir 'c.md'
+$pathExtStampPreview = Join-Path $env:USERPROFILE '.cprompt\.pathext-stamp'
+$pathExtSummary = if (Test-Path -LiteralPath $pathExtStampPreview) {
+    'remover .PS1 do PATHEXT (user) - foi adicionado por install.ps1'
+} else {
+    'PRESERVAR .PS1 em PATHEXT (sem stamp - nao foi adicionado por install.ps1)'
+}
 $summary = @(
     "remover modelo $CompilerName",
     "remover modelo $RefinerName",
     "remover $InstallDir do PATH (user)",
-    'remover .PS1 do PATHEXT (user)',
+    $pathExtSummary,
     "remover slash command $cmdFile (se presente)"
 )
 if ($PurgeBase)    { $summary += "remover base model $BaseModel" }
@@ -118,13 +124,15 @@ if (Test-Path -LiteralPath $cmdFile) {
 }
 
 # --- PATHEXT ---
+$pathExtStampPath = Join-Path $env:USERPROFILE '.cprompt\.pathext-stamp'
 $userExt = [Environment]::GetEnvironmentVariable('PATHEXT', 'User')
-$newExt  = Remove-PathEntry -PathString $userExt -Entry '.PS1'
-if ($newExt -ne $userExt) {
+if (Test-PathExtShouldRemove -PathExtString $userExt -Entry '.PS1' -StampPath $pathExtStampPath) {
+    $newExt = Remove-PathEntry -PathString $userExt -Entry '.PS1'
     Update-UserEnv -Name 'PATHEXT' -NewValue $newExt
-    Write-Host 'PATHEXT (user) limpo: .PS1 removido.' -ForegroundColor DarkGreen
+    Remove-Item -LiteralPath $pathExtStampPath -Force -ErrorAction SilentlyContinue
+    Write-Host 'PATHEXT (user) limpo: .PS1 removido (instalado por install.ps1).' -ForegroundColor DarkGreen
 } else {
-    Write-Host 'PATHEXT (user) nao continha .PS1.' -ForegroundColor DarkGray
+    Write-Host 'PATHEXT (user) preservado: .PS1 nao foi adicionado por install.ps1 (sem stamp).' -ForegroundColor DarkGray
 }
 
 # --- Base model (opt-in) ---

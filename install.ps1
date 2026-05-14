@@ -171,14 +171,20 @@ if ($newPath -ne $userPath) {
 }
 
 # --- Step 5: PATHEXT (opcional) ---
+$pathExtStampPath = Join-Path $env:USERPROFILE '.cprompt\.pathext-stamp'
 if (-not $NoPathExt) {
     $userExt = [Environment]::GetEnvironmentVariable('PATHEXT', 'User')
     $newExt  = Add-PathEntry -PathString $userExt -Entry '.PS1'
     if ($newExt -ne $userExt) {
         Update-UserEnv -Name 'PATHEXT' -NewValue $newExt
-        Write-Host "PATHEXT (user) atualizado: .PS1 adicionado." -ForegroundColor DarkGreen
+        $stampDir = Split-Path -Parent $pathExtStampPath
+        if (-not (Test-Path -LiteralPath $stampDir)) {
+            New-Item -ItemType Directory -Path $stampDir -Force | Out-Null
+        }
+        Set-Content -LiteralPath $pathExtStampPath -Value (Get-Date -Format 'o') -Encoding UTF8
+        Write-Host "PATHEXT (user) atualizado: .PS1 adicionado (stamp $pathExtStampPath)." -ForegroundColor DarkGreen
     } else {
-        Write-Host "PATHEXT (user) ja contem .PS1, nada a fazer." -ForegroundColor DarkGreen
+        Write-Host "PATHEXT (user) ja contem .PS1 (sem stamp, nao sera removido na desinstalacao)." -ForegroundColor DarkGreen
     }
 } else {
     Write-Host '(pulando PATHEXT por -NoPathExt; use o c.cmd shim para invocar c sem .ps1)' -ForegroundColor DarkGray

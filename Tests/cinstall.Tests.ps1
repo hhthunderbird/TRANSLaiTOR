@@ -100,6 +100,41 @@ Describe 'Remove-PathEntry' {
     }
 }
 
+Describe 'Test-PathExtShouldRemove' {
+    BeforeEach {
+        $script:tmpStamp = Join-Path $env:TEMP ("pathext-stamp-{0}.tmp" -f [guid]::NewGuid())
+    }
+    AfterEach {
+        if (Test-Path -LiteralPath $script:tmpStamp) {
+            Remove-Item -LiteralPath $script:tmpStamp -Force
+        }
+    }
+
+    It 'returns $false when the stamp file does not exist (we did not add the entry)' {
+        Test-PathExtShouldRemove -PathExtString '.COM;.EXE;.PS1' -Entry '.PS1' -StampPath $script:tmpStamp | Should Be $false
+    }
+
+    It 'returns $false when the stamp exists but the entry is absent (idempotent no-op)' {
+        New-Item -ItemType File -Path $script:tmpStamp -Force | Out-Null
+        Test-PathExtShouldRemove -PathExtString '.COM;.EXE' -Entry '.PS1' -StampPath $script:tmpStamp | Should Be $false
+    }
+
+    It 'returns $true when the stamp exists and the entry is present' {
+        New-Item -ItemType File -Path $script:tmpStamp -Force | Out-Null
+        Test-PathExtShouldRemove -PathExtString '.COM;.EXE;.PS1' -Entry '.PS1' -StampPath $script:tmpStamp | Should Be $true
+    }
+
+    It 'matches the entry case-insensitively' {
+        New-Item -ItemType File -Path $script:tmpStamp -Force | Out-Null
+        Test-PathExtShouldRemove -PathExtString '.COM;.exe;.ps1' -Entry '.PS1' -StampPath $script:tmpStamp | Should Be $true
+    }
+
+    It 'returns $false on a null PathExtString even with stamp present' {
+        New-Item -ItemType File -Path $script:tmpStamp -Force | Out-Null
+        Test-PathExtShouldRemove -PathExtString $null -Entry '.PS1' -StampPath $script:tmpStamp | Should Be $false
+    }
+}
+
 Describe 'Get-InstallRecoveryHint' {
     It 'embeds the reason and exit code in the header' {
         $hint = Get-InstallRecoveryHint -Code 4 -Reason 'ollama create falhou' -InstallDir 'C:\X'
