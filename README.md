@@ -155,6 +155,11 @@ c -Last                                      # print the most recent XML from hi
 c -Help                                      # show usage banner
 ```
 
+The cache key is a SHA256 of `(Model + null + Text)`, so switching
+`-Model` to a different compiler implicitly bypasses the cache for
+that prompt. `-NoCache` is only needed when you want to force a
+re-run against the same model (e.g. after retuning the Modelfile).
+
 ### Inside Claude Code (`/c` slash command)
 
 `install.ps1` copies a `/c` slash command file to

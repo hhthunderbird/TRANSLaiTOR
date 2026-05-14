@@ -34,6 +34,7 @@ uso:  c <ideia>                  distila e copia XML para clipboard
       c -Last                    imprime ultimo XML do historico
       c -Help                    mostra esta ajuda
 
+cache:        chave inclui (Model + Text). Mudar -Model invalida implicitamente.
 estado local: $script:StateRoot
 limites:      input maximo $script:MaxInputChars caracteres
 "@
