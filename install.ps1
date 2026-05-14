@@ -1,19 +1,24 @@
 <#
 .SYNOPSIS
-    Installs TRANSLaiTOR locally: builds the two Ollama models, adds the
-    script directory to the user-level PATH, and registers .PS1 in
-    PATHEXT (opt-out via -NoPathExt).
+    Installs TRANSLaiTOR locally: copies runtime files to an install
+    directory (default %USERPROFILE%\Scripts), builds the two Ollama
+    models, adds the install directory to the user-level PATH, and
+    registers .PS1 in PATHEXT (opt-out via -NoPathExt).
 
 .DESCRIPTION
-    Idempotent — re-running skips already-completed steps. Requires
-    Ollama already installed (MSI from ollama.com). No admin elevation
-    needed; all changes happen at the user scope.
+    Idempotent — re-running re-copies runtime files and skips
+    already-completed env changes. The dev/source tree (where this
+    script lives) stays separate from the install target so the .git
+    repo is not on PATH. Requires Ollama already installed (MSI from
+    ollama.com). No admin elevation needed; all changes happen at the
+    user scope.
 #>
 [CmdletBinding()]
 param(
     [string]$BaseModel    = 'llama3.2:3b',
     [string]$CompilerName = 'prompt-opt',
     [string]$RefinerName  = 'prompt-refiner',
+    [string]$InstallDir   = (Join-Path $env:USERPROFILE 'Scripts'),
     [switch]$NoPathExt,
     [switch]$SkipSmoke
 )
@@ -23,6 +28,44 @@ Set-StrictMode -Version Latest
 
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 Import-Module (Join-Path $here 'cinstall.psm1') -Force
+
+# Runtime files that must be present in $InstallDir for the CLI to work.
+# install.ps1 itself is deliberately NOT copied — it runs from the dev tree.
+$RuntimeFiles = @(
+    'c.ps1',
+    'c.cmd',
+    'cprompt.psm1',
+    'cstats.ps1',
+    'cinstall.psm1',
+    'Modelfile.compiler',
+    'Modelfile.refiner',
+    'uninstall.ps1'
+)
+
+function Copy-RuntimeFiles {
+    param(
+        [Parameter(Mandatory)][string]$Source,
+        [Parameter(Mandatory)][string]$Destination,
+        [Parameter(Mandatory)][string[]]$Files
+    )
+    if ($Source -eq $Destination) {
+        Write-Host "InstallDir == source ($Source), pulando copia." -ForegroundColor DarkGray
+        return
+    }
+    if (-not (Test-Path -LiteralPath $Destination)) {
+        New-Item -ItemType Directory -Path $Destination -Force | Out-Null
+        Write-Host "criado $Destination" -ForegroundColor DarkGreen
+    }
+    foreach ($file in $Files) {
+        $src = Join-Path $Source $file
+        if (-not (Test-Path -LiteralPath $src)) {
+            Write-Host "ERRO: arquivo runtime ausente no source: $src" -ForegroundColor Red
+            exit 6
+        }
+        Copy-Item -LiteralPath $src -Destination $Destination -Force
+    }
+    Write-Host "$($Files.Count) arquivos copiados para $Destination." -ForegroundColor DarkGreen
+}
 
 function Resolve-OllamaOrFail {
     $cmd = Get-Command 'ollama' -ErrorAction SilentlyContinue
@@ -67,6 +110,10 @@ function Update-UserEnv {
     [Environment]::SetEnvironmentVariable($Name, $NewValue, 'User')
 }
 
+# --- Step 0: copy runtime files to install dir ---
+Write-Host "--- copiando runtime para $InstallDir ---" -ForegroundColor Cyan
+Copy-RuntimeFiles -Source $here -Destination $InstallDir -Files $RuntimeFiles
+
 # --- Step 1: ollama present? ---
 $null = Resolve-OllamaOrFail
 Write-Host "ollama OK: $(& ollama --version 2>$null)" -ForegroundColor DarkGreen
@@ -96,12 +143,12 @@ Invoke-OllamaCreate -Name $RefinerName -Modelfile (Join-Path $here 'Modelfile.re
 
 # --- Step 4: PATH ---
 $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-$newPath  = Add-PathEntry -PathString $userPath -Entry $here
+$newPath  = Add-PathEntry -PathString $userPath -Entry $InstallDir
 if ($newPath -ne $userPath) {
     Update-UserEnv -Name 'Path' -NewValue $newPath
-    Write-Host "PATH (user) atualizado: $here adicionado." -ForegroundColor DarkGreen
+    Write-Host "PATH (user) atualizado: $InstallDir adicionado." -ForegroundColor DarkGreen
 } else {
-    Write-Host "PATH (user) ja contem $here, nada a fazer." -ForegroundColor DarkGreen
+    Write-Host "PATH (user) ja contem $InstallDir, nada a fazer." -ForegroundColor DarkGreen
 }
 
 # --- Step 5: PATHEXT (opcional) ---
@@ -121,7 +168,7 @@ if (-not $NoPathExt) {
 # --- Step 6: smoke (opcional) ---
 if (-not $SkipSmoke) {
     Write-Host "--- smoke test: c -NoRefine -Raw 'test input' ---" -ForegroundColor Cyan
-    & (Join-Path $here 'c.ps1') -NoRefine -Raw 'test input' | Out-Null
+    & (Join-Path $InstallDir 'c.ps1') -NoRefine -Raw 'test input' | Out-Null
     if ($LASTEXITCODE -eq 0) {
         Write-Host 'smoke OK.' -ForegroundColor Green
     } else {
