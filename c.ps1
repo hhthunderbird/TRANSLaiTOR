@@ -128,7 +128,7 @@ if (-not $skipRefiner) {
         $refinerRaw = ''
         $refinerWatch = [System.Diagnostics.Stopwatch]::StartNew()
         try {
-            $refinerRaw = ($userInput | & ollama run --nowordwrap $RefinerModel 2>$null | Out-String)
+            $refinerRaw = Invoke-OllamaModel -Text $userInput -Model $RefinerModel
         } catch {
             $refinerRaw = ''
         }
@@ -203,7 +203,7 @@ if (-not $xml) {
     $ollamaOutput = ''
     $compilerWatch = [System.Diagnostics.Stopwatch]::StartNew()
     try {
-        $ollamaOutput = ($userInput | & ollama run --nowordwrap $Model 2>$null | Out-String)
+        $ollamaOutput = Invoke-OllamaModel -Text $userInput -Model $Model
     } catch {
         $compilerWatch.Stop()
         $ErrorActionPreference = $prevEAP

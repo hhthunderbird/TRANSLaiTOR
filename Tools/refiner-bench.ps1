@@ -81,7 +81,7 @@ foreach ($case in $corpus.cases) {
 
     for ($i = 0; $i -lt $Trials; $i++) {
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        $raw = ($case.input | & ollama run --nowordwrap $RefinerModel 2>$null | Out-String)
+        $raw = Invoke-OllamaModel -Text $case.input -Model $RefinerModel
         $sw.Stop()
         $latencies += [double]$sw.ElapsedMilliseconds
 
