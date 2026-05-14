@@ -81,13 +81,6 @@ if (-not (Test-InputAcceptable -Text $userInput -MaxLength $script:MaxInputChars
     exit 1
 }
 
-if ($Send) {
-    try { $null = Resolve-Tool 'claude' } catch {
-        Write-Host "ERRO: claude CLI nao encontrado no PATH. Use sem -Send (clipboard)." -ForegroundColor Red
-        exit 3
-    }
-}
-
 $rawInput      = $userInput
 $refined       = $false
 $metricMode    = 'raw'   # default: refiner not consulted
