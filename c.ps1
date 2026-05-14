@@ -276,6 +276,11 @@ if ($Raw) {
 Write-Host "`n$xml`n" -ForegroundColor Gray
 
 if ($Send) {
+    if (-not (Test-CommandPresent -Name 'claude')) {
+        Write-Host "ERRO: 'claude' CLI nao encontrado no PATH. XML copiado para clipboard como fallback." -ForegroundColor Red
+        $xml | Set-Clipboard
+        exit 8
+    }
     Write-Host "--- enviando para claude CLI ---" -ForegroundColor Cyan
     # `claude` defaults to interactive. `-p`/`--print` reads stdin and exits.
     $xml | & claude -p
