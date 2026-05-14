@@ -99,3 +99,31 @@ Describe 'Remove-PathEntry' {
         Remove-PathEntry -PathString 'C:\Bin;C:\B' -Entry 'C:\B' | Should Be 'C:\Bin'
     }
 }
+
+Describe 'Get-InstallRecoveryHint' {
+    It 'embeds the reason and exit code in the header' {
+        $hint = Get-InstallRecoveryHint -Code 4 -Reason 'ollama create falhou' -InstallDir 'C:\X'
+        $hint | Should Match 'ollama create falhou'
+        $hint | Should Match 'codigo 4'
+    }
+
+    It 'mentions the install directory so the user knows where partial state lives' {
+        $hint = Get-InstallRecoveryHint -Code 2 -Reason 'ollama nao encontrado' -InstallDir 'C:\Users\me\Scripts'
+        $hint | Should Match 'C:\\Users\\me\\Scripts'
+    }
+
+    It 'suggests re-running install.ps1 as the primary recovery path' {
+        $hint = Get-InstallRecoveryHint -Code 5 -Reason 'pull failed' -InstallDir 'C:\X'
+        $hint | Should Match 'install\.ps1'
+    }
+
+    It 'suggests uninstall.ps1 -PurgeInstall as the cleanup fallback' {
+        $hint = Get-InstallRecoveryHint -Code 5 -Reason 'pull failed' -InstallDir 'C:\X'
+        $hint | Should Match 'uninstall\.ps1'
+        $hint | Should Match 'PurgeInstall'
+    }
+
+    It 'tolerates an empty reason without throwing' {
+        { Get-InstallRecoveryHint -Code 1 -Reason '' -InstallDir 'C:\X' } | Should Not Throw
+    }
+}

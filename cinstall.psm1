@@ -50,4 +50,20 @@ function Remove-PathEntry {
     return ($kept -join ';')
 }
 
-Export-ModuleMember -Function Test-PathContainsEntry, Add-PathEntry, Remove-PathEntry
+function Get-InstallRecoveryHint {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][int]$Code,
+        [Parameter(Mandatory)][AllowEmptyString()][string]$Reason,
+        [Parameter(Mandatory)][string]$InstallDir
+    )
+    return @"
+ERRO: $Reason (codigo $Code)
+estado parcial: runtime files podem ter sido copiados para $InstallDir.
+recuperacao:
+  1. corrija a causa raiz e rode install.ps1 de novo (operacao e idempotente)
+  2. ou rode uninstall.ps1 -PurgeInstall para limpar tudo
+"@
+}
+
+Export-ModuleMember -Function Test-PathContainsEntry, Add-PathEntry, Remove-PathEntry, Get-InstallRecoveryHint
