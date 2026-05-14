@@ -143,6 +143,28 @@ Describe 'Resolve-Tool' {
     }
 }
 
+Describe 'Test-CommandPresent' {
+    It 'returns $true for a command on PATH' {
+        (Test-CommandPresent -Name 'powershell') | Should Be $true
+    }
+
+    It 'returns $false for an absent command' {
+        (Test-CommandPresent -Name 'definitely-not-a-real-cmd-xyz-987') | Should Be $false
+    }
+
+    It 'returns $false for empty name' {
+        (Test-CommandPresent -Name '') | Should Be $false
+    }
+
+    It 'returns $false for null name' {
+        (Test-CommandPresent -Name $null) | Should Be $false
+    }
+
+    It 'does not throw on absent command' {
+        { Test-CommandPresent -Name 'definitely-not-a-real-cmd-xyz-987' } | Should Not Throw
+    }
+}
+
 Describe 'Get-CacheKey' {
     It 'returns deterministic hex hash for same model + input' {
         $a = Get-CacheKey -Model 'm1' -Text 'hello'

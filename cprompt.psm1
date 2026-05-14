@@ -66,6 +66,13 @@ function Resolve-Tool {
     return $cmd
 }
 
+function Test-CommandPresent {
+    [CmdletBinding()]
+    param([AllowNull()][AllowEmptyString()][string]$Name)
+    if ([string]::IsNullOrEmpty($Name)) { return $false }
+    return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
+}
+
 function Get-CacheKey {
     [CmdletBinding()]
     param(
@@ -397,6 +404,7 @@ Export-ModuleMember -Function `
     Get-PromptXml, `
     Test-PromptXml, `
     Resolve-Tool, `
+    Test-CommandPresent, `
     Test-InputAcceptable, `
     Test-InputIsZeroSignal, `
     Get-CacheKey, `
