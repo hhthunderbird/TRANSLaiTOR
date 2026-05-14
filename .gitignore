@@ -20,3 +20,9 @@ Thumbs.db
 
 # Pester intermediate
 TestResults.xml
+
+# Refiner bench runs: timestamped output is local-only. Commit a stable
+# baseline as `bench-results/baseline.json` (or any non-prefixed name) so
+# the regression test in Refiner.Quality.Tests.ps1 has something to
+# compare against.
+bench-results/bench-*.json

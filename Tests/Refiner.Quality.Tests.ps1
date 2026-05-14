@@ -12,7 +12,7 @@ $script:RefinerModel = if ($env:REFINER_MODEL) { $env:REFINER_MODEL } else { 'pr
 $script:BaselinePath = if ($env:REFINER_BASELINE) {
     $env:REFINER_BASELINE
 } else {
-    Join-Path $repoRoot 'bench-results/bench-20260514-123604.json'
+    Join-Path $repoRoot 'bench-results/baseline.json'
 }
 $script:DropThreshold = if ($env:REFINER_DROP_THRESHOLD) { [double]$env:REFINER_DROP_THRESHOLD } else { 0.40 }
 
