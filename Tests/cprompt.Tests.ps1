@@ -446,3 +446,57 @@ Describe 'Read-MetricsFile' {
         $entries.Count | Should Be 2
     }
 }
+
+Describe 'Get-MetricsSummary' {
+    It 'returns zeroed summary on empty input' {
+        $s = Get-MetricsSummary -Entries @()
+        $s.Count | Should Be 0
+        $s.CacheHitRate | Should Be 0
+        $s.LatencyP50 | Should Be 0
+        $s.LatencyP95 | Should Be 0
+    }
+
+    It 'computes count and cache hit rate' {
+        $entries = @(
+            @{ mode = 'cache'; totalMs = 5 },
+            @{ mode = 'passthrough'; totalMs = 100 },
+            @{ mode = 'cache'; totalMs = 6 },
+            @{ mode = 'raw'; totalMs = 50 }
+        )
+        $s = Get-MetricsSummary -Entries $entries
+        $s.Count | Should Be 4
+        $s.CacheHitRate | Should Be 0.5
+    }
+
+    It 'computes mode distribution as a hashtable of counts' {
+        $entries = @(
+            @{ mode = 'raw' }, @{ mode = 'raw' }, @{ mode = 'questions' },
+            @{ mode = 'passthrough' }, @{ mode = 'passthrough' }, @{ mode = 'passthrough' }
+        )
+        $s = Get-MetricsSummary -Entries $entries
+        $s.ModeCounts['raw'] | Should Be 2
+        $s.ModeCounts['questions'] | Should Be 1
+        $s.ModeCounts['passthrough'] | Should Be 3
+    }
+
+    It 'computes p50 and p95 of totalMs' {
+        $entries = 1..20 | ForEach-Object { @{ mode = 'passthrough'; totalMs = ($_ * 10) } }
+        $s = Get-MetricsSummary -Entries $entries
+        # 20 entries, values 10..200 step 10.
+        # p50 = element at ceil(0.5 * 20) = 10th -> 100.
+        # p95 = element at ceil(0.95 * 20) = 19th -> 190.
+        $s.LatencyP50 | Should Be 100
+        $s.LatencyP95 | Should Be 190
+    }
+
+    It 'computes average compression ratio over entries with both fields' {
+        $entries = @(
+            @{ mode = 'passthrough'; inputChars = 100; xmlChars = 200 },
+            @{ mode = 'passthrough'; inputChars = 50;  xmlChars = 150 },
+            @{ mode = 'raw';         inputChars = 0;   xmlChars = 0   }
+        )
+        $s = Get-MetricsSummary -Entries $entries
+        # Only the first two entries qualify (inputChars > 0). Ratios: 2.0, 3.0. Mean = 2.5.
+        $s.AvgCompressionRatio | Should Be 2.5
+    }
+}

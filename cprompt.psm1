@@ -156,6 +156,66 @@ function Read-MetricsFile {
     return $entries
 }
 
+function Get-MetricsSummary {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Entries
+    )
+
+    $summary = [ordered]@{
+        Count               = $Entries.Count
+        CacheHitRate        = 0.0
+        LatencyP50          = 0
+        LatencyP95          = 0
+        AvgCompressionRatio = 0.0
+        ModeCounts          = @{}
+    }
+
+    if ($Entries.Count -eq 0) { return [pscustomobject]$summary }
+
+    # Cache hit rate.
+    $cacheHits = @($Entries | Where-Object { $_.mode -eq 'cache' }).Count
+    $summary.CacheHitRate = [math]::Round($cacheHits / $Entries.Count, 4)
+
+    # Mode counts.
+    $modeCounts = @{}
+    foreach ($e in $Entries) {
+        $m = [string]$e.mode
+        if (-not $m) { $m = 'unknown' }
+        if (-not $modeCounts.ContainsKey($m)) { $modeCounts[$m] = 0 }
+        $modeCounts[$m] = $modeCounts[$m] + 1
+    }
+    $summary.ModeCounts = $modeCounts
+
+    # Latency percentiles over totalMs.
+    $latencies = @($Entries |
+        Where-Object { if ($_ -is [hashtable]) { $_.ContainsKey('totalMs') } else { $null -ne $_.PSObject.Properties['totalMs'] } } |
+        ForEach-Object { [int]$_.totalMs } |
+        Sort-Object)
+    if ($latencies.Count -gt 0) {
+        $summary.LatencyP50 = $latencies[[math]::Max(0, [math]::Ceiling(0.50 * $latencies.Count) - 1)]
+        $summary.LatencyP95 = $latencies[[math]::Max(0, [math]::Ceiling(0.95 * $latencies.Count) - 1)]
+    }
+
+    # Average compression ratio (xmlChars / inputChars) over entries with both > 0.
+    $ratios = @($Entries |
+        Where-Object {
+            if ($_ -is [hashtable]) {
+                $_.ContainsKey('inputChars') -and [int]$_.inputChars -gt 0 -and $_.ContainsKey('xmlChars')
+            } else {
+                $null -ne $_.PSObject.Properties['inputChars'] -and [int]$_.inputChars -gt 0 -and $null -ne $_.PSObject.Properties['xmlChars']
+            }
+        } |
+        ForEach-Object { [double]$_.xmlChars / [double]$_.inputChars })
+    if ($ratios.Count -gt 0) {
+        $sum = 0.0
+        foreach ($r in $ratios) { $sum += $r }
+        $summary.AvgCompressionRatio = [math]::Round($sum / $ratios.Count, 4)
+    }
+
+    return [pscustomobject]$summary
+}
+
 function Test-InputAcceptable {
     [CmdletBinding()]
     param(
@@ -253,6 +313,7 @@ Export-ModuleMember -Function `
     Get-LastHistoryEntry, `
     Add-MetricEntry, `
     Read-MetricsFile, `
+    Get-MetricsSummary, `
     Get-RefinerOutput, `
     Test-RefinerOutput, `
     Merge-RefinementAnswers
