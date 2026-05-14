@@ -112,7 +112,7 @@ if (-not $skipRefiner) {
         $refinerRaw = ''
         $refinerWatch = [System.Diagnostics.Stopwatch]::StartNew()
         try {
-            $refinerRaw = ($userInput | & ollama run $RefinerModel 2>$null | Out-String)
+            $refinerRaw = ($userInput | & ollama run --nowordwrap $RefinerModel 2>$null | Out-String)
         } catch {
             $refinerRaw = ''
         }
@@ -188,7 +188,7 @@ if (-not $xml) {
     $ollamaOutput = ''
     $compilerWatch = [System.Diagnostics.Stopwatch]::StartNew()
     try {
-        $ollamaOutput = ($userInput | & ollama run $Model 2>$null | Out-String)
+        $ollamaOutput = ($userInput | & ollama run --nowordwrap $Model 2>$null | Out-String)
     } catch {
         $compilerWatch.Stop()
         $ErrorActionPreference = $prevEAP
