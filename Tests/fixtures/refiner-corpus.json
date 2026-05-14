@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "notes": "Curated inputs for refiner quality benchmark. expectedMode: passthrough | questions | rejected (caught by zero-signal pre-gate). Edit when refiner behavior intentionally changes; do not mutate to chase a flaky run.",
+  "cases": [
+    {
+      "id": "concrete-go-cache",
+      "input": "cache lru em go com tamanho 1000 e ttl 30s",
+      "expectedMode": "passthrough",
+      "tags": ["concrete", "stack-named", "scope-named"]
+    },
+    {
+      "id": "concrete-unity-ecs",
+      "input": "sistema de tiro no ecs unity usando burst com pool de projeteis",
+      "expectedMode": "passthrough",
+      "tags": ["concrete", "stack-named"]
+    },
+    {
+      "id": "concrete-sql-opt",
+      "input": "otimiza essa query sql que ta lenta com milhoes de linhas",
+      "expectedMode": "passthrough",
+      "tags": ["concrete", "stack-named"]
+    },
+    {
+      "id": "vague-cache",
+      "input": "preciso ajuda com cache",
+      "expectedMode": "questions",
+      "tags": ["vague", "stack-missing"]
+    },
+    {
+      "id": "vague-worker",
+      "input": "write a worker queue",
+      "expectedMode": "questions",
+      "tags": ["vague", "stack-missing", "english"]
+    },
+    {
+      "id": "vague-improve",
+      "input": "preciso de algo melhor",
+      "expectedMode": "questions",
+      "tags": ["vague", "scope-missing"]
+    },
+    {
+      "id": "zero-signal-short",
+      "input": "ajuda",
+      "expectedMode": "rejected",
+      "tags": ["zero-signal", "pre-gate"]
+    },
+    {
+      "id": "zero-signal-blank",
+      "input": "   ",
+      "expectedMode": "rejected",
+      "tags": ["zero-signal", "pre-gate"]
+    }
+  ]
+}
