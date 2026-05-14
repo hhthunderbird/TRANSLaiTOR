@@ -73,6 +73,18 @@ function Test-CommandPresent {
     return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
 }
 
+function Invoke-OllamaModel {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Text,
+        [Parameter(Mandatory)][string]$Model
+    )
+    # `2>$null` swallows the terminal progress spinner ollama prints to stderr.
+    # `--nowordwrap` keeps tag bodies on one logical line; ANSI escapes are
+    # still cleaned downstream by Remove-AnsiEscapes / Get-RefinerOutput.
+    return ($Text | & ollama run --nowordwrap $Model 2>$null | Out-String)
+}
+
 function Get-CacheKey {
     [CmdletBinding()]
     param(
@@ -405,6 +417,7 @@ Export-ModuleMember -Function `
     Test-PromptXml, `
     Resolve-Tool, `
     Test-CommandPresent, `
+    Invoke-OllamaModel, `
     Test-InputAcceptable, `
     Test-InputIsZeroSignal, `
     Get-CacheKey, `

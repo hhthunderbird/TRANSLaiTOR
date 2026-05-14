@@ -28,7 +28,7 @@ $script:Available = [bool]($script:OllamaCmd -and $script:ModelPresent)
 
 function Invoke-Refiner {
     param([Parameter(Mandatory)][string]$Text)
-    $raw = ($Text | & ollama run --nowordwrap $script:RefinerModel 2>$null | Out-String)
+    $raw = Invoke-OllamaModel -Text $Text -Model $script:RefinerModel
     if (-not $raw) { return $null }
     return Get-RefinerOutput $raw
 }
