@@ -242,6 +242,17 @@ function Test-InputAcceptable {
     return $true
 }
 
+function Test-InputIsZeroSignal {
+    [CmdletBinding()]
+    param(
+        [AllowNull()][AllowEmptyString()][string]$Text,
+        [int]$MinWords = 4
+    )
+    if ([string]::IsNullOrWhiteSpace($Text)) { return $true }
+    $words = @(($Text.Trim() -split '\s+') | Where-Object { $_ })
+    return ($words.Count -lt $MinWords)
+}
+
 function Get-RefinerOutput {
     [CmdletBinding()]
     param([string]$RawOutput)
@@ -323,6 +334,7 @@ Export-ModuleMember -Function `
     Test-PromptXml, `
     Resolve-Tool, `
     Test-InputAcceptable, `
+    Test-InputIsZeroSignal, `
     Get-CacheKey, `
     Get-CachedXml, `
     Set-CachedXml, `
