@@ -639,4 +639,94 @@ Describe 'Test-InputIsZeroSignal' {
     }
 }
 
+Describe 'Get-RefinerRegressions' {
+    function _baseCase {
+        param([string]$Id, [string]$Expected, [int]$Trials, [hashtable]$ModeCounts)
+        return [pscustomobject]@{
+            id           = $Id
+            expectedMode = $Expected
+            trials       = $Trials
+            modeCounts   = [pscustomobject]$ModeCounts
+        }
+    }
+    function _dist {
+        param([string[]]$Modes)
+        return @($Modes | ForEach-Object { [pscustomobject]@{ Mode = $_; QCount = 0 } })
+    }
+
+    It 'returns empty when no baseline cases' {
+        $res = Get-RefinerRegressions -BaselineCases @() -FreshDistributions @{}
+        @($res).Count | Should Be 0
+    }
+
+    It 'skips rejected baseline cases entirely' {
+        $base = @(_baseCase -Id 'z1' -Expected 'rejected' -Trials 0 -ModeCounts @{})
+        $res = Get-RefinerRegressions -BaselineCases $base -FreshDistributions @{}
+        @($res).Count | Should Be 0
+    }
+
+    It 'returns empty when fresh matches baseline exactly' {
+        $base = @(_baseCase -Id 'c1' -Expected 'passthrough' -Trials 10 -ModeCounts @{ passthrough = 10; questions = 0; invalid = 0 })
+        $fresh = @{ c1 = (_dist -Modes (1..10 | ForEach-Object { 'passthrough' })) }
+        $res = Get-RefinerRegressions -BaselineCases $base -FreshDistributions $fresh -DropThreshold 0.4
+        @($res).Count | Should Be 0
+    }
+
+    It 'reports failure when fresh expected-mode rate drops more than threshold' {
+        $base = @(_baseCase -Id 'c1' -Expected 'passthrough' -Trials 10 -ModeCounts @{ passthrough = 10; questions = 0; invalid = 0 })
+        $fresh = @{ c1 = (_dist -Modes (1..10 | ForEach-Object { 'questions' })) }
+        $res = @(Get-RefinerRegressions -BaselineCases $base -FreshDistributions $fresh -DropThreshold 0.4)
+        $res.Count                     | Should Be 1
+        [string]$res[0].id             | Should Be 'c1'
+        [double]$res[0].baselineRate   | Should Be 1.0
+        [double]$res[0].freshRate      | Should Be 0.0
+        [double]$res[0].drop           | Should Be 1.0
+    }
+
+    It 'returns empty when drop is exactly at threshold' {
+        $base = @(_baseCase -Id 'c1' -Expected 'passthrough' -Trials 10 -ModeCounts @{ passthrough = 10; questions = 0; invalid = 0 })
+        $modes = @('passthrough','passthrough','passthrough','passthrough','passthrough','passthrough','questions','questions','questions','questions')
+        $fresh = @{ c1 = (_dist -Modes $modes) }
+        $res = @(Get-RefinerRegressions -BaselineCases $base -FreshDistributions $fresh -DropThreshold 0.4)
+        $res.Count | Should Be 0
+    }
+
+    It 'returns empty when fresh improves over baseline' {
+        $base = @(_baseCase -Id 'c1' -Expected 'passthrough' -Trials 10 -ModeCounts @{ passthrough = 5; questions = 5; invalid = 0 })
+        $fresh = @{ c1 = (_dist -Modes (1..10 | ForEach-Object { 'passthrough' })) }
+        $res = @(Get-RefinerRegressions -BaselineCases $base -FreshDistributions $fresh -DropThreshold 0.4)
+        $res.Count | Should Be 0
+    }
+
+    It 'reports failure when fresh data is missing for a baseline case' {
+        $base = @(_baseCase -Id 'c1' -Expected 'passthrough' -Trials 10 -ModeCounts @{ passthrough = 10; questions = 0; invalid = 0 })
+        $res = @(Get-RefinerRegressions -BaselineCases $base -FreshDistributions @{} -DropThreshold 0.4)
+        $res.Count          | Should Be 1
+        [string]$res[0].id  | Should Be 'c1'
+        [string]$res[0].reason | Should Match 'fresh'
+    }
+
+    It 'defaults DropThreshold to 0.40 when omitted' {
+        $base = @(_baseCase -Id 'c1' -Expected 'passthrough' -Trials 10 -ModeCounts @{ passthrough = 10; questions = 0; invalid = 0 })
+        # 50% drop > default 40% → must fail
+        $modes = @('passthrough','passthrough','passthrough','passthrough','passthrough','questions','questions','questions','questions','questions')
+        $fresh = @{ c1 = (_dist -Modes $modes) }
+        $res = @(Get-RefinerRegressions -BaselineCases $base -FreshDistributions $fresh)
+        $res.Count | Should Be 1
+    }
+
+    It 'handles multiple cases independently' {
+        $base = @(
+            (_baseCase -Id 'a' -Expected 'passthrough' -Trials 10 -ModeCounts @{ passthrough = 10; questions = 0; invalid = 0 }),
+            (_baseCase -Id 'b' -Expected 'questions'   -Trials 10 -ModeCounts @{ passthrough = 0; questions = 10; invalid = 0 })
+        )
+        $fresh = @{
+            a = (_dist -Modes (1..10 | ForEach-Object { 'passthrough' }))   # OK
+            b = (_dist -Modes (1..10 | ForEach-Object { 'passthrough' }))   # collapsed
+        }
+        $res = @(Get-RefinerRegressions -BaselineCases $base -FreshDistributions $fresh -DropThreshold 0.4)
+        $res.Count         | Should Be 1
+        [string]$res[0].id | Should Be 'b'
+    }
+}
 
