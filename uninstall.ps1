@@ -46,8 +46,17 @@ function Remove-OllamaModel {
         return
     }
     Write-Host "--- removendo modelo $Name ---" -ForegroundColor Cyan
-    & ollama rm $Name 2>$null
-    # `ollama rm` returns nonzero if the model was already absent — silent in that case.
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & ollama rm $Name 2>$null | Out-Null
+    } catch {
+        # ollama rm exits nonzero if the model was already absent — swallow it.
+    }
+    $ErrorActionPreference = $prevEAP
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "(modelo $Name ja ausente ou rm falhou - codigo $LASTEXITCODE)" -ForegroundColor DarkGray
+    }
 }
 
 function Update-UserEnv {
