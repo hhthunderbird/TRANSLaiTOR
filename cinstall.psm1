@@ -50,6 +50,17 @@ function Remove-PathEntry {
     return ($kept -join ';')
 }
 
+function Test-PathExtShouldRemove {
+    [CmdletBinding()]
+    param(
+        [AllowNull()][AllowEmptyString()][string]$PathExtString,
+        [Parameter(Mandatory)][string]$Entry,
+        [Parameter(Mandatory)][string]$StampPath
+    )
+    if (-not (Test-Path -LiteralPath $StampPath)) { return $false }
+    return [bool](Test-PathContainsEntry -PathString $PathExtString -Entry $Entry)
+}
+
 function Get-InstallRecoveryHint {
     [CmdletBinding()]
     param(
@@ -66,4 +77,4 @@ recuperacao:
 "@
 }
 
-Export-ModuleMember -Function Test-PathContainsEntry, Add-PathEntry, Remove-PathEntry, Get-InstallRecoveryHint
+Export-ModuleMember -Function Test-PathContainsEntry, Add-PathEntry, Remove-PathEntry, Get-InstallRecoveryHint, Test-PathExtShouldRemove
