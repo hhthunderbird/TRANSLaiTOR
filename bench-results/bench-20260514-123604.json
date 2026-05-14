@@ -1,0 +1,232 @@
+{
+    "startedAt":  "2026-05-14T12:36:04.7816378-03:00",
+    "endedAt":  "2026-05-14T12:36:54.8331484-03:00",
+    "durationSec":  50.05,
+    "refinerModel":  "prompt-refiner",
+    "trialsPerCase":  10,
+    "corpusVersion":  1,
+    "cases":  [
+                  {
+                      "id":  "concrete-go-cache",
+                      "input":  "cache lru em go com tamanho 1000 e ttl 30s",
+                      "expectedMode":  "passthrough",
+                      "preGateBlocks":  false,
+                      "trials":  10,
+                      "modeCounts":  {
+                                         "questions":  0,
+                                         "passthrough":  10,
+                                         "invalid":  0
+                                     },
+                      "qCountCounts":  {
+                                           "0":  10
+                                       },
+                      "latencyMsP50":  851,
+                      "latencyMsP95":  1200,
+                      "samples":  [
+                                      {
+                                          "mode":  "passthrough",
+                                          "qCount":  0,
+                                          "payload":  "cache lru em go com tamanho 1000 e ttl 30s"
+                                      },
+                                      {
+                                          "mode":  "passthrough",
+                                          "qCount":  0,
+                                          "payload":  "cache lru em go com tamanho 1000 e ttl 30s"
+                                      }
+                                  ]
+                  },
+                  {
+                      "id":  "concrete-unity-ecs",
+                      "input":  "sistema de tiro no ecs unity usando burst com pool de projeteis",
+                      "expectedMode":  "passthrough",
+                      "preGateBlocks":  false,
+                      "trials":  10,
+                      "modeCounts":  {
+                                         "questions":  0,
+                                         "passthrough":  10,
+                                         "invalid":  0
+                                     },
+                      "qCountCounts":  {
+                                           "0":  10
+                                       },
+                      "latencyMsP50":  836,
+                      "latencyMsP95":  907,
+                      "samples":  [
+                                      {
+                                          "mode":  "passthrough",
+                                          "qCount":  0,
+                                          "payload":  "sistema de tiro no ecs unity usando burst com pool de projeteis"
+                                      },
+                                      {
+                                          "mode":  "passthrough",
+                                          "qCount":  0,
+                                          "payload":  "sistema de tiro no ecs unity usando burst com pool de projeteis"
+                                      }
+                                  ]
+                  },
+                  {
+                      "id":  "concrete-sql-opt",
+                      "input":  "otimiza essa query sql que ta lenta com milhoes de linhas",
+                      "expectedMode":  "passthrough",
+                      "preGateBlocks":  false,
+                      "trials":  10,
+                      "modeCounts":  {
+                                         "questions":  0,
+                                         "passthrough":  10,
+                                         "invalid":  0
+                                     },
+                      "qCountCounts":  {
+                                           "0":  10
+                                       },
+                      "latencyMsP50":  887,
+                      "latencyMsP95":  934,
+                      "samples":  [
+                                      {
+                                          "mode":  "passthrough",
+                                          "qCount":  0,
+                                          "payload":  "otimiza essa query sql que ta lenta com milhoes de linhas"
+                                      },
+                                      {
+                                          "mode":  "passthrough",
+                                          "qCount":  0,
+                                          "payload":  "otimiza essa query sql que ta lenta com milhoes de linhas"
+                                      }
+                                  ]
+                  },
+                  {
+                      "id":  "vague-cache",
+                      "input":  "preciso ajuda com cache",
+                      "expectedMode":  "questions",
+                      "preGateBlocks":  false,
+                      "trials":  10,
+                      "modeCounts":  {
+                                         "questions":  10,
+                                         "passthrough":  0,
+                                         "invalid":  0
+                                     },
+                      "qCountCounts":  {
+                                           "1":  10
+                                       },
+                      "latencyMsP50":  778,
+                      "latencyMsP95":  855,
+                      "samples":  [
+                                      {
+                                          "mode":  "questions",
+                                          "qCount":  1,
+                                          "payload":  [
+                                                          "qual tecnologia de cache?"
+                                                      ]
+                                      },
+                                      {
+                                          "mode":  "questions",
+                                          "qCount":  1,
+                                          "payload":  [
+                                                          "qual tecnologia de cache?"
+                                                      ]
+                                      }
+                                  ]
+                  },
+                  {
+                      "id":  "vague-worker",
+                      "input":  "write a worker queue",
+                      "expectedMode":  "questions",
+                      "preGateBlocks":  false,
+                      "trials":  10,
+                      "modeCounts":  {
+                                         "questions":  10,
+                                         "passthrough":  0,
+                                         "invalid":  0
+                                     },
+                      "qCountCounts":  {
+                                           "1":  10
+                                       },
+                      "latencyMsP50":  752,
+                      "latencyMsP95":  803,
+                      "samples":  [
+                                      {
+                                          "mode":  "questions",
+                                          "qCount":  1,
+                                          "payload":  [
+                                                          "qual linguagem e runtime?"
+                                                      ]
+                                      },
+                                      {
+                                          "mode":  "questions",
+                                          "qCount":  1,
+                                          "payload":  [
+                                                          "qual linguagem e runtime?"
+                                                      ]
+                                      }
+                                  ]
+                  },
+                  {
+                      "id":  "vague-improve",
+                      "input":  "preciso de algo melhor",
+                      "expectedMode":  "questions",
+                      "preGateBlocks":  false,
+                      "trials":  10,
+                      "modeCounts":  {
+                                         "questions":  10,
+                                         "passthrough":  0,
+                                         "invalid":  0
+                                     },
+                      "qCountCounts":  {
+                                           "1":  10
+                                       },
+                      "latencyMsP50":  808,
+                      "latencyMsP95":  890,
+                      "samples":  [
+                                      {
+                                          "mode":  "questions",
+                                          "qCount":  1,
+                                          "payload":  [
+                                                          "qual banco de dados e o que está lentinho?"
+                                                      ]
+                                      },
+                                      {
+                                          "mode":  "questions",
+                                          "qCount":  1,
+                                          "payload":  [
+                                                          "qual banco de dados e o que está lentinho?"
+                                                      ]
+                                      }
+                                  ]
+                  },
+                  {
+                      "id":  "zero-signal-short",
+                      "input":  "ajuda",
+                      "expectedMode":  "rejected",
+                      "preGateBlocks":  true,
+                      "trials":  0,
+                      "modeCounts":  {
+
+                                     },
+                      "qCountCounts":  {
+
+                                       },
+                      "latencyMsP50":  0,
+                      "latencyMsP95":  0,
+                      "samples":  [
+
+                                  ]
+                  },
+                  {
+                      "id":  "zero-signal-blank",
+                      "input":  "   ",
+                      "expectedMode":  "rejected",
+                      "preGateBlocks":  true,
+                      "trials":  0,
+                      "modeCounts":  {
+
+                                     },
+                      "qCountCounts":  {
+
+                                       },
+                      "latencyMsP50":  0,
+                      "latencyMsP95":  0,
+                      "samples":  [
+
+                                  ]
+                  }
+              ]
+}

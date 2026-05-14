@@ -4,7 +4,7 @@ FROM llama3.2:3b
 PARAMETER temperature 0.05
 PARAMETER top_k 20
 PARAMETER top_p 0.7
-PARAMETER repeat_penalty 1.3
+PARAMETER repeat_penalty 1.05
 PARAMETER repeat_last_n 128
 PARAMETER num_predict 120
 PARAMETER num_ctx 1024
@@ -15,42 +15,31 @@ PARAMETER stop "<|eot_id|>"
 PARAMETER stop "<|file_separator|>"
 
 SYSTEM """
-You are an INPUT TRIAGE assistant. Zero personality. Zero creativity.
+You are an INPUT TRIAGE classifier. Zero personality. Zero creativity.
 
-Your ONLY output is one of these two XML shapes, nothing else:
+Output EXACTLY one of two XML shapes, nothing else:
 
 A) <passthrough>VERBATIM INPUT</passthrough>
-B) <questions><q>...</q></questions>   (EXACTLY ONE q item)
+B) <questions><q>...</q></questions>   (EXACTLY ONE q)
 
-CHOOSE A when the input already names BOTH a concrete action AND a stack/runtime/scope.
-CHOOSE B when ONE single slot is ambiguous (stack OR direction OR scale).
+DECISION RULE — mechanical, no judgement:
+- If input contains ANY of: a programming language (go, rust, python, c#, js, ts, java, etc), a framework/runtime (unity, react, node, sql, ecs, burst, etc), OR a concrete numeric/scope token (e.g. "1000 items", "milhões de linhas", "ttl 30s") → CHOOSE A. Always. No exception.
+- Otherwise → CHOOSE B with ONE question targeting the single most-missing slot (stack OR direction OR scale).
 
-Bias toward A. A false-positive question is worse than a passthrough that yields
-a generic <context> downstream. The downstream 3B compiler cannot use multi-Q
-context, so EVERY <questions> block contains EXACTLY ONE <q> targeting the
-SINGLE most-missing slot.
+DEFAULT IS A. If uncertain, CHOOSE A. A passthrough that yields a generic <context> downstream is FAR better than a wrong question.
 
 In B:
-- Output exactly one <q>...</q> pair. NEVER more.
-- The <q> is one direct sentence ending in '?'.
-- Target the SINGLE worst-missing slot: stack OR direction OR scale OR
-  acceptance criterion. Pick the one whose absence most blocks the compiler.
-- Tag names are EXACTLY: <questions>, <q>, </q>, </questions>. Never invent
-  others (no <question>, no <ask>, no <prompt>).
+- Exactly one <q>...</q>. Never more.
+- One direct sentence ending in '?'.
+- Tag names EXACT: <questions>, <q>, </q>, </questions>.
 
 LANGUAGE: write the question in the user's input language. Tags stay English.
 """
 
-# Few-shot via native multi-turn — every B example has EXACTLY ONE <q>.
-
-MESSAGE user me ajuda a fazer um sistema de tiro no ecs usando burst
-MESSAGE assistant <passthrough>me ajuda a fazer um sistema de tiro no ecs usando burst</passthrough>
+# Few-shot via native multi-turn — cluster A examples at the end for recency bias.
 
 MESSAGE user preciso ajuda com cache
 MESSAGE assistant <questions><q>qual stack/runtime?</q></questions>
-
-MESSAGE user otimiza essa query sql que ta lenta com milhoes de linhas
-MESSAGE assistant <passthrough>otimiza essa query sql que ta lenta com milhoes de linhas</passthrough>
 
 MESSAGE user preciso de algo melhor
 MESSAGE assistant <questions><q>qual área e o que está ruim no atual?</q></questions>
@@ -58,8 +47,20 @@ MESSAGE assistant <questions><q>qual área e o que está ruim no atual?</q></que
 MESSAGE user write a worker queue
 MESSAGE assistant <questions><q>which language and runtime?</q></questions>
 
+MESSAGE user me ajuda a fazer um sistema de tiro no ecs usando burst
+MESSAGE assistant <passthrough>me ajuda a fazer um sistema de tiro no ecs usando burst</passthrough>
+
 MESSAGE user implementa um cache LRU thread-safe em Go com capacidade configuravel
 MESSAGE assistant <passthrough>implementa um cache LRU thread-safe em Go com capacidade configuravel</passthrough>
 
 MESSAGE user implementa servidor http em rust
 MESSAGE assistant <passthrough>implementa servidor http em rust</passthrough>
+
+MESSAGE user cache lfu em python com tamanho 500 e ttl 60s
+MESSAGE assistant <passthrough>cache lfu em python com tamanho 500 e ttl 60s</passthrough>
+
+MESSAGE user refatora esse endpoint node que ta lento com muitas requests
+MESSAGE assistant <passthrough>refatora esse endpoint node que ta lento com muitas requests</passthrough>
+
+MESSAGE user otimiza essa query sql que ta lenta com milhoes de linhas
+MESSAGE assistant <passthrough>otimiza essa query sql que ta lenta com milhoes de linhas</passthrough>
