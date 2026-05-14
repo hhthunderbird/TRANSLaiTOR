@@ -186,13 +186,22 @@ if (-not $NoPathExt) {
 
 # --- Step 6: smoke (opcional) ---
 if (-not $SkipSmoke) {
-    Write-Host "--- smoke test: c -NoRefine -Raw 'test input' ---" -ForegroundColor Cyan
-    & (Join-Path $InstallDir 'c.ps1') -NoRefine -Raw 'test input' | Out-Null
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host 'smoke OK.' -ForegroundColor Green
-    } else {
-        Write-Host "smoke retornou codigo $LASTEXITCODE (modelo pode estar lento na 1a inferencia; revise manualmente)." -ForegroundColor Yellow
+    Write-Host "--- smoke test: c -NoRefine -Raw 'sistema de tiro no ecs unity' ---" -ForegroundColor Cyan
+    Import-Module (Join-Path $InstallDir 'cprompt.psm1') -Force
+    $smokeOut = & (Join-Path $InstallDir 'c.ps1') -NoRefine -Raw 'sistema de tiro no ecs unity' 2>&1 | Out-String
+    $smokeExit = $LASTEXITCODE
+    $smokeXml = $smokeOut.Trim()
+    if ($smokeExit -ne 0) {
+        Write-Host "ERRO: smoke retornou codigo $smokeExit." -ForegroundColor Red
+        Write-Host "stdout: $smokeXml" -ForegroundColor DarkGray
+        exit 9
     }
+    if (-not (Test-PromptXml -Xml $smokeXml)) {
+        Write-Host "ERRO: smoke saiu zero mas output nao casou <task>/<context>/<constraints>." -ForegroundColor Red
+        Write-Host "stdout: $smokeXml" -ForegroundColor DarkGray
+        exit 9
+    }
+    Write-Host 'smoke OK.' -ForegroundColor Green
 }
 
 Write-Host ''
