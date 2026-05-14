@@ -102,23 +102,15 @@ $ollamaPresent = $null
 $skipRefiner = $NoRefine -or $Raw
 
 # Zero-signal pre-gate: inputs with <4 words give the 3B refiner nothing to
-# work with, so it hallucinates a topic. Ask 3 canned scope questions
-# deterministically, merge answers, then skip the model refiner entirely.
+# work with, so it hallucinates a topic. Ask ONE deterministic question
+# that prompts a richer reformulation, then skip the model refiner entirely.
+# Multiple questions hurt the small compiler downstream — keep it to one.
 if (-not $skipRefiner -and (Test-InputIsZeroSignal -Text $userInput)) {
-    Write-Host '--- input muito vago, coletando contexto ---' -ForegroundColor DarkCyan
-    $cannedQs = @(
-        'qual area (backend, frontend, devops, dados, jogos, outro)?',
-        'qual problema concreto?',
-        'qual stack/linguagem alvo?'
-    )
-    $pairs = @()
-    $i = 1
-    foreach ($q in $cannedQs) {
-        Write-Host "$i) $q" -ForegroundColor Yellow
-        $answer = Read-Host '>'
-        $pairs += @{ Question = $q; Answer = $answer }
-        $i++
-    }
+    Write-Host '--- input muito vago, reformule ---' -ForegroundColor DarkCyan
+    $q = 'reformule em uma frase com area, problema e stack:'
+    Write-Host "1) $q" -ForegroundColor Yellow
+    $answer = Read-Host '>'
+    $pairs = @(@{ Question = $q; Answer = $answer })
     $userInput = Merge-RefinementAnswers -Raw $rawInput -Pairs $pairs
     if ($userInput -ne $rawInput) { $refined = $true }
     $metricMode = 'pregate'
@@ -152,14 +144,13 @@ if (-not $skipRefiner) {
         if (Test-RefinerOutput $parsed) {
             if ($parsed.Mode -eq 'questions') {
                 $metricMode = 'questions'
-                $pairs = @()
-                $i = 1
-                foreach ($q in $parsed.Payload) {
-                    Write-Host "$i) $q" -ForegroundColor Yellow
-                    $answer = Read-Host '>'
-                    $pairs += @{ Question = $q; Answer = $answer }
-                    $i++
-                }
+                # Cap at the FIRST question only. The 3B compiler downstream
+                # cannot benefit from multi-Q context — extra questions just
+                # add noise. Modelfile.refiner is also tuned to emit one.
+                $firstQ = $parsed.Payload[0]
+                Write-Host "1) $firstQ" -ForegroundColor Yellow
+                $answer = Read-Host '>'
+                $pairs = @(@{ Question = $firstQ; Answer = $answer })
                 $userInput = Merge-RefinementAnswers -Raw $rawInput -Pairs $pairs
                 if ($userInput -ne $rawInput) { $refined = $true }
             } else {
