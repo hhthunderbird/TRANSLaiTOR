@@ -21,6 +21,26 @@ user idea → c.ps1 → Ollama (prompt-opt model) → <task><context><constraint
 
 ## Install
 
+### Scripted install (recommended)
+
+After installing the Ollama MSI from <https://ollama.com>, clone the repo
+and run:
+
+```powershell
+git clone https://github.com/hhthunderbird/TRANSLaiTOR.git $env:USERPROFILE\Scripts
+& $env:USERPROFILE\Scripts\install.ps1
+```
+
+The installer is idempotent: re-running it is safe and skips
+already-completed steps. Switches:
+
+- `-NoPathExt` — skip registering `.PS1` in `PATHEXT` (use the bundled
+  `c.cmd` shim instead).
+- `-SkipSmoke` — skip the post-install `c -NoRefine -Raw 'test input'`
+  invocation.
+
+### Manual install
+
 The instructions below assume the repo lives at `%USERPROFILE%\Scripts`. Substitute
 your own path if you cloned elsewhere.
 
@@ -64,6 +84,23 @@ your own path if you cloned elsewhere.
    c -NoRefine "test input" -Raw
    ```
    Expected: a `<task>...</task><context>...</context><constraints>...</constraints>` block printed to stdout. If you see `ERRO: ollama nao encontrado` step 2 or 5 needs fixing.
+
+## Uninstall
+
+```powershell
+& $env:USERPROFILE\Scripts\uninstall.ps1
+```
+
+By default the uninstaller removes the two local models and reverts the
+PATH/PATHEXT entries the installer added. Optional purges:
+
+- `-PurgeBase`  — also removes the `llama3.2:3b` base model.
+- `-PurgeState` — also deletes `%USERPROFILE%\.cprompt\` (cache, history,
+  metrics). Irreversible.
+- `-Force`      — skip the confirmation prompt.
+
+The script never deletes the repo directory itself — remove that
+manually when you are done.
 
 ## Usage
 
@@ -123,6 +160,9 @@ PS> c "preciso de cache lru com ttl em go"
 
 - `c.ps1` — entrypoint, argument parsing, Ollama call, Claude pipe.
 - `cstats.ps1` — CLI that summarises `metrics.jsonl`.
+- `install.ps1` — scripted installer (idempotent; user-scope env vars).
+- `uninstall.ps1` — reverses `install.ps1`; optional `-PurgeBase` / `-PurgeState`.
+- `cinstall.psm1` — pure helpers for PATH-string manipulation.
 - `c.cmd` — Windows shim so `c` works in cmd.exe and plain `PATH` setups.
 - `cprompt.psm1` — pure helpers (BOM strip, XML extraction, tool resolution).
 - `Modelfile.compiler` — Ollama Modelfile for the compiler stage
@@ -130,6 +170,7 @@ PS> c "preciso de cache lru com ttl em go"
 - `Modelfile.refiner` — Ollama Modelfile for the refiner stage
   (`prompt-refiner` model): emits `<passthrough>` or `<questions>`.
 - `Tests/cprompt.Tests.ps1` — Pester v3 unit tests.
+- `Tests/cinstall.Tests.ps1` — Pester v3 unit tests for cinstall.
 
 ## Metrics
 
