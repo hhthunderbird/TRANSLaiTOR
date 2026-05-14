@@ -331,6 +331,66 @@ function Merge-RefinementAnswers {
     return "$Raw`n`n" + ($kept -join "`n")
 }
 
+function Get-RefinerRegressions {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $BaselineCases,
+        [Parameter(Mandatory)] [hashtable]$FreshDistributions,
+        [double]$DropThreshold = 0.40
+    )
+
+    $failures = @()
+    foreach ($case in $BaselineCases) {
+        $expected = [string]$case.expectedMode
+        if ($expected -eq 'rejected') { continue }
+
+        $baseTrials = [int]$case.trials
+        if ($baseTrials -le 0) { continue }
+
+        $modeProp = $case.modeCounts.PSObject.Properties[$expected]
+        $baseHits = if ($modeProp) { [int]$modeProp.Value } else { 0 }
+        $baseRate = $baseHits / $baseTrials
+
+        if (-not $FreshDistributions.ContainsKey($case.id)) {
+            $failures += [pscustomobject]@{
+                id           = [string]$case.id
+                reason       = 'fresh distribution missing'
+                baselineRate = $baseRate
+                freshRate    = $null
+                drop         = $null
+            }
+            continue
+        }
+
+        $fresh = @($FreshDistributions[$case.id])
+        if ($fresh.Count -le 0) {
+            $failures += [pscustomobject]@{
+                id           = [string]$case.id
+                reason       = 'fresh distribution empty'
+                baselineRate = $baseRate
+                freshRate    = $null
+                drop         = $null
+            }
+            continue
+        }
+
+        $freshHits = @($fresh | Where-Object { [string]$_.Mode -eq $expected }).Count
+        $freshRate = $freshHits / $fresh.Count
+        $drop      = $baseRate - $freshRate
+
+        if ($drop -gt $DropThreshold) {
+            $failures += [pscustomobject]@{
+                id           = [string]$case.id
+                reason       = ("drop {0:P0} exceeds threshold {1:P0}" -f $drop, $DropThreshold)
+                baselineRate = $baseRate
+                freshRate    = $freshRate
+                drop         = $drop
+            }
+        }
+    }
+    return $failures
+}
+
 Export-ModuleMember -Function `
     Remove-Bom, `
     Remove-AnsiEscapes, `
@@ -349,4 +409,5 @@ Export-ModuleMember -Function `
     Get-MetricsSummary, `
     Get-RefinerOutput, `
     Test-RefinerOutput, `
-    Merge-RefinementAnswers
+    Merge-RefinementAnswers, `
+    Get-RefinerRegressions

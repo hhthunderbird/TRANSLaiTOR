@@ -9,6 +9,12 @@ $corpus = Get-Content $corpusPath -Raw | ConvertFrom-Json
 
 $script:Trials = if ($env:REFINER_TRIALS) { [int]$env:REFINER_TRIALS } else { 10 }
 $script:RefinerModel = if ($env:REFINER_MODEL) { $env:REFINER_MODEL } else { 'prompt-refiner' }
+$script:BaselinePath = if ($env:REFINER_BASELINE) {
+    $env:REFINER_BASELINE
+} else {
+    Join-Path $repoRoot 'bench-results/bench-20260514-123604.json'
+}
+$script:DropThreshold = if ($env:REFINER_DROP_THRESHOLD) { [double]$env:REFINER_DROP_THRESHOLD } else { 0.40 }
 
 # Probe environment once. Pester 3.x has no native -Skip; we gate via $script:Available
 $script:OllamaCmd = $null
@@ -98,5 +104,47 @@ Describe 'Refiner statistical invariants' -Tags 'Live' {
                 }
             }
         }
+    }
+}
+
+Describe 'Refiner regression vs baseline' -Tags 'Live' {
+    if (-not $script:Available) {
+        It 'skipped: ollama or prompt-refiner model not found' {
+            Write-Warning "Skipping live refiner tests: ollama=$([bool]$script:OllamaCmd) model=$script:ModelPresent"
+            $true | Should Be $true
+        }
+        return
+    }
+    if (-not (Test-Path -LiteralPath $script:BaselinePath)) {
+        It "skipped: baseline file missing at $script:BaselinePath" {
+            Write-Warning "Skipping regression check: baseline not found ($script:BaselinePath)"
+            $true | Should Be $true
+        }
+        return
+    }
+
+    $script:Baseline = Get-Content $script:BaselinePath -Raw | ConvertFrom-Json
+    $script:FreshDistributions = @{}
+
+    foreach ($case in $script:Baseline.cases) {
+        if ($case.expectedMode -eq 'rejected') { continue }
+        $localCase = $case
+        It "collects fresh distribution for case: $($localCase.id)" {
+            $script:FreshDistributions[$localCase.id] = Get-ModeDistribution -Text $localCase.input -N $script:Trials
+            @($script:FreshDistributions[$localCase.id]).Count | Should Be $script:Trials
+        }
+    }
+
+    It "fresh expected-mode rate stays within $($script:DropThreshold * 100)pp of baseline for every case" {
+        $failures = @(Get-RefinerRegressions `
+            -BaselineCases $script:Baseline.cases `
+            -FreshDistributions $script:FreshDistributions `
+            -DropThreshold $script:DropThreshold)
+
+        foreach ($f in $failures) {
+            Write-Host ("    REGRESSION [{0}] baseline={1:P0} fresh={2:P0} drop={3:P0} ({4})" -f `
+                $f.id, $f.baselineRate, $f.freshRate, $f.drop, $f.reason) -ForegroundColor Red
+        }
+        $failures.Count | Should Be 0
     }
 }
