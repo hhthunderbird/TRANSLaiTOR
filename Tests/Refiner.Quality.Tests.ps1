@@ -54,7 +54,7 @@ Describe 'Refiner pre-gate (zero-signal)' {
         if ($case.expectedMode -ne 'rejected') { continue }
         $localCase = $case
         It "rejects zero-signal input: $($localCase.id)" {
-            (Test-InputIsZeroSignal -Text $localCase.input) | Should Be $true
+            (Test-InputIsZeroSignal -Text $localCase.input) | Should -Be $true
         }
     }
 }
@@ -63,7 +63,7 @@ Describe 'Refiner statistical invariants' -Tags 'Live' {
     if (-not $script:Available) {
         It 'skipped: ollama or prompt-refiner model not found' {
             Write-Warning "Skipping live refiner tests: ollama=$([bool]$script:OllamaCmd) model=$script:ModelPresent"
-            $true | Should Be $true
+            $true | Should -Be $true
         }
         return
     }
@@ -78,13 +78,13 @@ Describe 'Refiner statistical invariants' -Tags 'Live' {
                 $valid = @($script:Dist | Where-Object { $_.Mode -ne 'invalid' }).Count
                 $rate = $valid / $script:Trials
                 Write-Host ("    [{0}] valid={1}/{2} ({3:P0})" -f $localCase.id, $valid, $script:Trials, $rate)
-                ($rate -ge 0.8) | Should Be $true
+                ($rate -ge 0.8) | Should -Be $true
             }
 
             It 'never emits more than 1 question (cap invariant)' {
                 $maxQ = ($script:Dist | Measure-Object -Property QCount -Maximum).Maximum
                 if ($null -eq $maxQ) { $maxQ = 0 }
-                ($maxQ -le 1) | Should Be $true
+                ($maxQ -le 1) | Should -Be $true
             }
 
             if ($localCase.expectedMode -eq 'passthrough') {
@@ -92,7 +92,7 @@ Describe 'Refiner statistical invariants' -Tags 'Live' {
                     $pt = @($script:Dist | Where-Object { $_.Mode -eq 'passthrough' }).Count
                     $rate = $pt / $script:Trials
                     Write-Host ("    [{0}] passthrough={1}/{2} ({3:P0})" -f $localCase.id, $pt, $script:Trials, $rate)
-                    ($rate -ge 0.6) | Should Be $true
+                    ($rate -ge 0.6) | Should -Be $true
                 }
             }
             elseif ($localCase.expectedMode -eq 'questions') {
@@ -100,7 +100,7 @@ Describe 'Refiner statistical invariants' -Tags 'Live' {
                     $q = @($script:Dist | Where-Object { $_.Mode -eq 'questions' }).Count
                     $rate = $q / $script:Trials
                     Write-Host ("    [{0}] questions={1}/{2} ({3:P0})" -f $localCase.id, $q, $script:Trials, $rate)
-                    ($rate -ge 0.6) | Should Be $true
+                    ($rate -ge 0.6) | Should -Be $true
                 }
             }
         }
@@ -111,14 +111,14 @@ Describe 'Refiner regression vs baseline' -Tags 'Live' {
     if (-not $script:Available) {
         It 'skipped: ollama or prompt-refiner model not found' {
             Write-Warning "Skipping live refiner tests: ollama=$([bool]$script:OllamaCmd) model=$script:ModelPresent"
-            $true | Should Be $true
+            $true | Should -Be $true
         }
         return
     }
     if (-not (Test-Path -LiteralPath $script:BaselinePath)) {
         It "skipped: baseline file missing at $script:BaselinePath" {
             Write-Warning "Skipping regression check: baseline not found ($script:BaselinePath)"
-            $true | Should Be $true
+            $true | Should -Be $true
         }
         return
     }
@@ -131,7 +131,7 @@ Describe 'Refiner regression vs baseline' -Tags 'Live' {
         $localCase = $case
         It "collects fresh distribution for case: $($localCase.id)" {
             $script:FreshDistributions[$localCase.id] = Get-ModeDistribution -Text $localCase.input -N $script:Trials
-            @($script:FreshDistributions[$localCase.id]).Count | Should Be $script:Trials
+            @($script:FreshDistributions[$localCase.id]).Count | Should -Be $script:Trials
         }
     }
 
@@ -145,6 +145,6 @@ Describe 'Refiner regression vs baseline' -Tags 'Live' {
             Write-Host ("    REGRESSION [{0}] baseline={1:P0} fresh={2:P0} drop={3:P0} ({4})" -f `
                 $f.id, $f.baselineRate, $f.freshRate, $f.drop, $f.reason) -ForegroundColor Red
         }
-        $failures.Count | Should Be 0
+        $failures.Count | Should -Be 0
     }
 }
