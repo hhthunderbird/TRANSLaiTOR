@@ -7,6 +7,7 @@ param(
     [switch]$Last,
     [switch]$NoRefine,
     [switch]$NonInteractive,
+    [switch]$Interactive,
     [string]$Model = 'prompt-opt',
     [string]$RefinerModel = 'prompt-refiner',
     [Parameter(ValueFromRemainingArguments = $true)]
@@ -31,7 +32,8 @@ uso:  c <ideia>                  distila e copia XML para clipboard
       c <ideia> -Model X         usa modelo Ollama compilador diferente (default: prompt-opt)
       c <ideia> -RefinerModel Y  usa modelo Ollama refinador diferente (default: prompt-refiner)
       c <ideia> -NoRefine        pula o estagio refinador, vai direto ao compilador
-      c <ideia> -NonInteractive  suprime Read-Host (hooks, piped invocations); Q&A vira passthrough
+      c <ideia> -Interactive     habilita Q&A do refiner/pre-gate (default: skip Q&A)
+      c <ideia> -NonInteractive  (alias historico; agora e o default)
       c <ideia> -NoCache         ignora cache, forca chamada nova ao Ollama compilador
       c -Last                    imprime ultimo XML do historico
       c -Help                    mostra esta ajuda
@@ -97,18 +99,17 @@ $ollamaPresent = $null
 # `-Raw` implies `-NoRefine`: scripted use cannot answer prompts interactively.
 $skipRefiner = $NoRefine -or $Raw
 
+# Default: Q&A loops are OFF — refiner/pre-gate fall back to raw passthrough.
+# `-Interactive` opts in to the (blocking) prompts. `-NonInteractive` kept as
+# a no-op alias so older hook installs that still pass it do not break.
+$askQuestions = [bool]$Interactive
+
 # Zero-signal pre-gate: inputs with <4 words give the 3B refiner nothing to
 # work with, so it hallucinates a topic. Ask ONE deterministic question
 # that prompts a richer reformulation, then skip the model refiner entirely.
 # Multiple questions hurt the small compiler downstream — keep it to one.
 if (-not $skipRefiner -and (Test-InputIsZeroSignal -Text $userInput)) {
-    if ($NonInteractive) {
-        # Hook / piped invocation cannot answer Read-Host. Treat zero-signal
-        # input as raw passthrough; downstream compiler is the next gate.
-        Write-Host "(input vago em modo nao-interativo - usando cru)" -ForegroundColor DarkGray
-        $metricMode = 'pregate-skip'
-        $skipRefiner = $true
-    } else {
+    if ($askQuestions) {
         Write-Host '--- input muito vago, reformule ---' -ForegroundColor DarkCyan
         $q = 'reformule em uma frase com area, problema e stack:'
         Write-Host "1) $q" -ForegroundColor Yellow
@@ -117,6 +118,12 @@ if (-not $skipRefiner -and (Test-InputIsZeroSignal -Text $userInput)) {
         $userInput = Merge-RefinementAnswers -Raw $rawInput -Pairs $pairs
         if ($userInput -ne $rawInput) { $refined = $true }
         $metricMode = 'pregate'
+        $skipRefiner = $true
+    } else {
+        # Default: zero-friction. Pre-gate would block on Read-Host, skip
+        # to raw passthrough; downstream compiler is the next gate.
+        Write-Host "(input vago - usando cru. -Interactive p/ reformular)" -ForegroundColor DarkGray
+        $metricMode = 'pregate-skip'
         $skipRefiner = $true
     }
 }
@@ -147,12 +154,7 @@ if (-not $skipRefiner) {
 
         if (Test-RefinerOutput $parsed) {
             if ($parsed.Mode -eq 'questions') {
-                if ($NonInteractive) {
-                    # Hook / piped invocation cannot answer Read-Host. Drop to
-                    # raw passthrough so the compiler still gets to run.
-                    Write-Host "(refiner pediu Q&A em modo nao-interativo - usando cru)" -ForegroundColor DarkGray
-                    $metricMode = 'questions-skip'
-                } else {
+                if ($askQuestions) {
                     $metricMode = 'questions'
                     # Cap at the FIRST question only. The 3B compiler downstream
                     # cannot benefit from multi-Q context — extra questions just
@@ -163,6 +165,10 @@ if (-not $skipRefiner) {
                     $pairs = @(@{ Question = $firstQ; Answer = $answer })
                     $userInput = Merge-RefinementAnswers -Raw $rawInput -Pairs $pairs
                     if ($userInput -ne $rawInput) { $refined = $true }
+                } else {
+                    # Default: zero-friction. Refiner wants Q&A but we skip.
+                    Write-Host "(refiner pediu Q&A - usando cru. -Interactive p/ responder)" -ForegroundColor DarkGray
+                    $metricMode = 'questions-skip'
                 }
             } else {
                 # Mode = 'passthrough' → leave $userInput alone, $refined stays $false.

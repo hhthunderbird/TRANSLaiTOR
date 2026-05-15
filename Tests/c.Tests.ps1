@@ -93,29 +93,65 @@ Describe 'c.ps1 -Last' {
     }
 }
 
-Describe 'c.ps1 -NonInteractive' {
-    # Both -Raw and -NoRefine set $skipRefiner=$true, which BYPASSES the
-    # zero-signal pre-gate entirely (no Read-Host ever happens). To exercise
-    # the pre-gate, the test must NOT pass either of those flags. With
-    # -NonInteractive set, the pre-gate must print a skip notice instead of
-    # calling Read-Host. A timeout-bounded subprocess pass proves the
-    # suppression worked.
+Describe 'c.ps1 zero-friction default (Q&A is opt-in)' {
+    # Regression suite for friction reports from interactive terminal use.
+    # All tests run under `powershell.exe -NoProfile -NonInteractive` via
+    # the existing Invoke-CScript driver. In that mode any unsuppressed
+    # Read-Host throws a terminating error, which would surface as a
+    # non-zero exit. A clean exit therefore PROVES no Read-Host was hit
+    # (and only the new default-skip behaviour can deliver that without
+    # the caller explicitly passing -NonInteractive).
 
-    It 'short input (<4 words) hits the pre-gate and prints a non-interactive notice' {
-        $tmpHome = Join-Path $TestDrive 'home-pregate-noni'
-        $res = Invoke-CScript -Args @('-NonInteractive', 'go') -IsolatedHome $tmpHome
-        # Pre-gate fired, NonInteractive branch ran, no Read-Host.
-        # Compiler downstream may still fail on "go" alone; what we check is
-        # that the script TERMINATED with a recognised exit and the notice
-        # appeared on stdout (Write-Host messages surface via 2>&1).
-        $res.StdOut | Should Match '(?i)nao-interativo'
+    It 'meta-question prompt does not block on refiner Q&A (case A)' {
+        $tmpHome = Join-Path $TestDrive 'home-case-a'
+        # No interactive flag. Real user input that previously hit a
+        # refiner-questions block from an interactive terminal. Must
+        # exit 0 (compiler XML or raw fallback), NOT crash on Read-Host.
+        $res = Invoke-CScript -Args @('-Raw', 'qual é a nossa próxima tarefa na lista?') -IsolatedHome $tmpHome
+        $res.ExitCode | Should Be 0
+        # stdout must contain SOMETHING (either valid XML or raw fallback)
+        $res.StdOut.Trim().Length -gt 0 | Should Be $true
     }
 
-    It 'short input with -Raw -NoRefine skips the pre-gate altogether (no notice expected)' {
-        $tmpHome = Join-Path $TestDrive 'home-pregate-skip'
-        $res = Invoke-CScript -Args @('-NonInteractive', '-Raw', '-NoRefine', 'go') -IsolatedHome $tmpHome
-        # Pre-gate is gated by (-not $skipRefiner). With -Raw the pre-gate
-        # never runs, so the new "nao-interativo" notice must NOT appear.
-        $res.StdOut | Should Not Match '(?i)input vago em modo nao-interativo'
+    It 'conversational/meta prompt without -Raw still terminates without Q&A hang (case B)' {
+        $tmpHome = Join-Path $TestDrive 'home-case-b'
+        $res = Invoke-CScript -Args @('Não, eu quero que teste os casos que deram erro comigo') -IsolatedHome $tmpHome
+        # Without -Raw the refiner runs. If it picks 'questions' mode and
+        # default still blocks, this would crash with a Read-Host error.
+        # With the new opt-in default it must exit 0 and proceed to the
+        # compiler (or fall back to raw input).
+        $res.ExitCode | Should Be 0
+    }
+
+    It 'short input (<4 words) does not block on zero-signal pre-gate by default' {
+        $tmpHome = Join-Path $TestDrive 'home-pregate-default'
+        # Previously the pre-gate fired Read-Host unconditionally; the only
+        # escape was -NonInteractive. New default must auto-skip the Q&A.
+        $res = Invoke-CScript -Args @('go') -IsolatedHome $tmpHome
+        $res.ExitCode | Should Be 0
+    }
+
+    It '-Interactive flag is documented in the help banner' {
+        # We CAN'T positively assert Read-Host fires in a -NonInteractive
+        # subprocess (it'd just crash). Document the contract instead: if
+        # the user opts in, they accept the blocking semantics. The flag
+        # exists and is recognised; we just verify help text mentions it.
+        # Word-boundary match to avoid matching -NonInteractive.
+        $tmpHome = Join-Path $TestDrive 'home-help-interactive'
+        $res = Invoke-CScript -Args @('-Help') -IsolatedHome $tmpHome
+        $res.ExitCode | Should Be 0
+        $res.StdOut   | Should Match '(?<![A-Za-z])-Interactive\b'
+    }
+}
+
+Describe 'c.ps1 -NonInteractive (legacy alias, now a no-op)' {
+    # Default is non-interactive, so -NonInteractive behaves identically to
+    # not passing it. Tests here just verify the flag is still accepted
+    # without error (hook installs that still pass it must not break).
+
+    It 'accepts -NonInteractive without parameter-binding errors' {
+        $tmpHome = Join-Path $TestDrive 'home-noni-alias'
+        $res = Invoke-CScript -Args @('-NonInteractive', '-Raw', '-NoRefine', 'sistema de tiro no ecs unity') -IsolatedHome $tmpHome
+        $res.ExitCode | Should Be 0
     }
 }
