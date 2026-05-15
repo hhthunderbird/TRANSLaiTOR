@@ -92,3 +92,30 @@ Describe 'c.ps1 -Last' {
         $res.StdOut   | Should Match '<constraints>T</constraints>'
     }
 }
+
+Describe 'c.ps1 -NonInteractive' {
+    # Both -Raw and -NoRefine set $skipRefiner=$true, which BYPASSES the
+    # zero-signal pre-gate entirely (no Read-Host ever happens). To exercise
+    # the pre-gate, the test must NOT pass either of those flags. With
+    # -NonInteractive set, the pre-gate must print a skip notice instead of
+    # calling Read-Host. A timeout-bounded subprocess pass proves the
+    # suppression worked.
+
+    It 'short input (<4 words) hits the pre-gate and prints a non-interactive notice' {
+        $tmpHome = Join-Path $TestDrive 'home-pregate-noni'
+        $res = Invoke-CScript -Args @('-NonInteractive', 'go') -IsolatedHome $tmpHome
+        # Pre-gate fired, NonInteractive branch ran, no Read-Host.
+        # Compiler downstream may still fail on "go" alone; what we check is
+        # that the script TERMINATED with a recognised exit and the notice
+        # appeared on stdout (Write-Host messages surface via 2>&1).
+        $res.StdOut | Should Match '(?i)nao-interativo'
+    }
+
+    It 'short input with -Raw -NoRefine skips the pre-gate altogether (no notice expected)' {
+        $tmpHome = Join-Path $TestDrive 'home-pregate-skip'
+        $res = Invoke-CScript -Args @('-NonInteractive', '-Raw', '-NoRefine', 'go') -IsolatedHome $tmpHome
+        # Pre-gate is gated by (-not $skipRefiner). With -Raw the pre-gate
+        # never runs, so the new "nao-interativo" notice must NOT appear.
+        $res.StdOut | Should Not Match '(?i)input vago em modo nao-interativo'
+    }
+}

@@ -6,6 +6,7 @@ param(
     [switch]$NoCache,
     [switch]$Last,
     [switch]$NoRefine,
+    [switch]$NonInteractive,
     [string]$Model = 'prompt-opt',
     [string]$RefinerModel = 'prompt-refiner',
     [Parameter(ValueFromRemainingArguments = $true)]
@@ -30,6 +31,7 @@ uso:  c <ideia>                  distila e copia XML para clipboard
       c <ideia> -Model X         usa modelo Ollama compilador diferente (default: prompt-opt)
       c <ideia> -RefinerModel Y  usa modelo Ollama refinador diferente (default: prompt-refiner)
       c <ideia> -NoRefine        pula o estagio refinador, vai direto ao compilador
+      c <ideia> -NonInteractive  suprime Read-Host (hooks, piped invocations); Q&A vira passthrough
       c <ideia> -NoCache         ignora cache, forca chamada nova ao Ollama compilador
       c -Last                    imprime ultimo XML do historico
       c -Help                    mostra esta ajuda
@@ -100,15 +102,23 @@ $skipRefiner = $NoRefine -or $Raw
 # that prompts a richer reformulation, then skip the model refiner entirely.
 # Multiple questions hurt the small compiler downstream — keep it to one.
 if (-not $skipRefiner -and (Test-InputIsZeroSignal -Text $userInput)) {
-    Write-Host '--- input muito vago, reformule ---' -ForegroundColor DarkCyan
-    $q = 'reformule em uma frase com area, problema e stack:'
-    Write-Host "1) $q" -ForegroundColor Yellow
-    $answer = Read-Host '>'
-    $pairs = @(@{ Question = $q; Answer = $answer })
-    $userInput = Merge-RefinementAnswers -Raw $rawInput -Pairs $pairs
-    if ($userInput -ne $rawInput) { $refined = $true }
-    $metricMode = 'pregate'
-    $skipRefiner = $true
+    if ($NonInteractive) {
+        # Hook / piped invocation cannot answer Read-Host. Treat zero-signal
+        # input as raw passthrough; downstream compiler is the next gate.
+        Write-Host "(input vago em modo nao-interativo - usando cru)" -ForegroundColor DarkGray
+        $metricMode = 'pregate-skip'
+        $skipRefiner = $true
+    } else {
+        Write-Host '--- input muito vago, reformule ---' -ForegroundColor DarkCyan
+        $q = 'reformule em uma frase com area, problema e stack:'
+        Write-Host "1) $q" -ForegroundColor Yellow
+        $answer = Read-Host '>'
+        $pairs = @(@{ Question = $q; Answer = $answer })
+        $userInput = Merge-RefinementAnswers -Raw $rawInput -Pairs $pairs
+        if ($userInput -ne $rawInput) { $refined = $true }
+        $metricMode = 'pregate'
+        $skipRefiner = $true
+    }
 }
 
 if (-not $skipRefiner) {
@@ -137,16 +147,23 @@ if (-not $skipRefiner) {
 
         if (Test-RefinerOutput $parsed) {
             if ($parsed.Mode -eq 'questions') {
-                $metricMode = 'questions'
-                # Cap at the FIRST question only. The 3B compiler downstream
-                # cannot benefit from multi-Q context — extra questions just
-                # add noise. Modelfile.refiner is also tuned to emit one.
-                $firstQ = $parsed.Payload[0]
-                Write-Host "1) $firstQ" -ForegroundColor Yellow
-                $answer = Read-Host '>'
-                $pairs = @(@{ Question = $firstQ; Answer = $answer })
-                $userInput = Merge-RefinementAnswers -Raw $rawInput -Pairs $pairs
-                if ($userInput -ne $rawInput) { $refined = $true }
+                if ($NonInteractive) {
+                    # Hook / piped invocation cannot answer Read-Host. Drop to
+                    # raw passthrough so the compiler still gets to run.
+                    Write-Host "(refiner pediu Q&A em modo nao-interativo - usando cru)" -ForegroundColor DarkGray
+                    $metricMode = 'questions-skip'
+                } else {
+                    $metricMode = 'questions'
+                    # Cap at the FIRST question only. The 3B compiler downstream
+                    # cannot benefit from multi-Q context — extra questions just
+                    # add noise. Modelfile.refiner is also tuned to emit one.
+                    $firstQ = $parsed.Payload[0]
+                    Write-Host "1) $firstQ" -ForegroundColor Yellow
+                    $answer = Read-Host '>'
+                    $pairs = @(@{ Question = $firstQ; Answer = $answer })
+                    $userInput = Merge-RefinementAnswers -Raw $rawInput -Pairs $pairs
+                    if ($userInput -ne $rawInput) { $refined = $true }
+                }
             } else {
                 # Mode = 'passthrough' → leave $userInput alone, $refined stays $false.
                 $metricMode = 'passthrough'
