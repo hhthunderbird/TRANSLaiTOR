@@ -64,15 +64,17 @@ Describe 'c.ps1 cache behavior' {
     It '-NoCache on second run forces compiler call even when cache file exists' {
         $fixture = Join-Path $script:fixtures 'combo-passthrough-valid.json'
 
-        # run1 seeds the cache (cache from the previous It may also already exist —
-        # $TestDrive is per-Describe in Pester 5, so state carries over).
+        # run1's cache is already warm from It #1 above (Pester 5 $TestDrive is
+        # per-Describe, not per-It, so cache files persist across It blocks in
+        # the same Describe). Asserting run1's invocations = just the refiner
+        # locks in that cache is genuinely doing its job; a broken cache would
+        # make run1 record both invocations and fail this line before run2.
         $run1 = Invoke-CIntegration `
             -TestDrive $TestDrive `
             -RepoRoot $script:repoRoot `
             -Fixture $fixture `
             -Args @('sistema ecs unity 3d game')
-        # No assertion on run1.Invocations: cache may or may not be warm here.
-        # What matters is that the cache file now exists before run2.
+        $run1.Invocations | Should -Be @('prompt-refiner')
 
         $run2 = Invoke-CIntegration `
             -TestDrive $TestDrive `
