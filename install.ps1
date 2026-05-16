@@ -171,18 +171,25 @@ if ($newPath -ne $userPath) {
 }
 
 # --- Step 5: PATHEXT (opcional) ---
+# User PATHEXT acts as a FULL OVERRIDE of Machine PATHEXT (not merged like
+# PATH). If we wrote just '.PS1' into an empty User PATHEXT, .EXE/.CMD/etc
+# would fall out of the user process scope and break Get-Command for every
+# binary. Resolve-UserPathExtForInstall seeds from Machine first when User
+# is empty so the result is always a superset.
 $pathExtStampPath = Join-Path $env:USERPROFILE '.cprompt\.pathext-stamp'
 if (-not $NoPathExt) {
-    $userExt = [Environment]::GetEnvironmentVariable('PATHEXT', 'User')
-    $newExt  = Add-PathEntry -PathString $userExt -Entry '.PS1'
-    if ($newExt -ne $userExt) {
-        Update-UserEnv -Name 'PATHEXT' -NewValue $newExt
-        $stampDir = Split-Path -Parent $pathExtStampPath
-        if (-not (Test-Path -LiteralPath $stampDir)) {
-            New-Item -ItemType Directory -Path $stampDir -Force | Out-Null
+    $userExt    = [Environment]::GetEnvironmentVariable('PATHEXT', 'User')
+    $machineExt = [Environment]::GetEnvironmentVariable('PATHEXT', 'Machine')
+    if ($null -eq $machineExt) { $machineExt = '' }
+    $resolved = Resolve-UserPathExtForInstall -UserPathExt $userExt -MachinePathExt $machineExt -Entry '.PS1'
+    if ($resolved.Changed) {
+        Update-UserEnv -Name 'PATHEXT' -NewValue $resolved.Value
+        New-PathExtStamp -Path $pathExtStampPath -Entry '.PS1' -PreviousValue $resolved.PreviousValue -WrittenValue $resolved.Value -Seeded $resolved.Seeded
+        if ($resolved.Seeded) {
+            Write-Host "PATHEXT (user) seeded de Machine + .PS1 adicionado (stamp $pathExtStampPath)." -ForegroundColor DarkGreen
+        } else {
+            Write-Host "PATHEXT (user) atualizado: .PS1 adicionado (stamp $pathExtStampPath)." -ForegroundColor DarkGreen
         }
-        Set-Content -LiteralPath $pathExtStampPath -Value (Get-Date -Format 'o') -Encoding UTF8
-        Write-Host "PATHEXT (user) atualizado: .PS1 adicionado (stamp $pathExtStampPath)." -ForegroundColor DarkGreen
     } else {
         Write-Host "PATHEXT (user) ja contem .PS1 (sem stamp, nao sera removido na desinstalacao)." -ForegroundColor DarkGreen
     }
