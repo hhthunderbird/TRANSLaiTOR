@@ -98,7 +98,7 @@ Describe 'c.ps1 refiner Q&A flow' {
         $r.Invocations | Should -Be @('prompt-refiner','prompt-opt')
 
         # history.jsonl is append-only; this is the first It in the Describe so only 1 line exists.
-        $histLine = Get-Content -LiteralPath $r.HistoryPath | Select-Object -Last 1
+        $histLine = Get-Content -LiteralPath $r.HistoryPath | Where-Object { $_.Trim() } | Select-Object -Last 1
         $hist = $histLine | ConvertFrom-Json
         $hist.input   | Should -Match 'redis local'
         $hist.refined | Should -BeTrue
@@ -115,14 +115,14 @@ Describe 'c.ps1 refiner Q&A flow' {
         $r.Invocations | Should -Be @('prompt-refiner','prompt-opt')
 
         # Read last line — $TestDrive persists from It #1, so history.jsonl now has 2 entries.
-        $histLine = Get-Content -LiteralPath $r.HistoryPath | Select-Object -Last 1
+        $histLine = Get-Content -LiteralPath $r.HistoryPath | Where-Object { $_.Trim() } | Select-Object -Last 1
         $hist = $histLine | ConvertFrom-Json
         $hist.input   | Should -Be 'cache management strategy options'
         $hist.refined | Should -BeFalse
 
         # The metrics line for run2 should record metricMode='questions-skip'.
         # metrics.jsonl is also append-only — read the last line.
-        $metricsLine = Get-Content -LiteralPath $r.MetricsPath | Select-Object -Last 1
+        $metricsLine = Get-Content -LiteralPath $r.MetricsPath | Where-Object { $_.Trim() } | Select-Object -Last 1
         $metrics = $metricsLine | ConvertFrom-Json
         $metrics.mode | Should -Be 'questions-skip'
     }
