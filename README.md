@@ -267,6 +267,8 @@ kind are not logged.
 Invoke-Pester C:\Projetos\TRANSLaiTOR\Tests
 ```
 
+`Tests/c.Integration.Tests.ps1` adds 10 end-to-end tests for the refiner→compiler pipeline (cache hit/miss, Q&A loop, `-NoRefine`, frictionless fallback, `-Send`) using a PATH-shim mock for `ollama` and `claude`.
+
 ## Troubleshooting
 
 - **`Error: (line N) command must be one of …` on `ollama create`** — every
