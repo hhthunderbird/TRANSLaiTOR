@@ -127,3 +127,26 @@ Describe 'c.ps1 refiner Q&A flow' {
         $metrics.mode | Should -Be 'questions-skip'
     }
 }
+
+Describe 'c.ps1 frictionless fallback' {
+    It 'when compiler emits non-XML, c.ps1 emits AVISO and uses raw input as XML payload' {
+        $r = Invoke-CIntegration `
+            -TestDrive $TestDrive `
+            -RepoRoot $script:repoRoot `
+            -Fixture (Join-Path $script:fixtures 'compiler-fallback-nonxml.json') `
+            -Args @('-NoRefine','sistema ecs unity')
+
+        $r.ExitCode | Should -Be 0
+        $r.StdOut   | Should -Match 'AVISO: otimizador nao produziu XML valido'
+
+        # Fallback runs are NOT cached (c.ps1:248 comment).
+        if (Test-Path $r.CacheDir) {
+            (Get-ChildItem -LiteralPath $r.CacheDir -File -ErrorAction SilentlyContinue).Count | Should -Be 0
+        }
+
+        # metrics.jsonl: read last line (defensively filter blanks).
+        $metricsLine = Get-Content -LiteralPath $r.MetricsPath | Where-Object { $_.Trim() } | Select-Object -Last 1
+        $metrics = $metricsLine | ConvertFrom-Json
+        $metrics.mode | Should -Be 'fallback'
+    }
+}
