@@ -60,7 +60,7 @@ function Invoke-CIntegration {
         ExitCode     = $p.ExitCode
         StdOut       = if (Test-Path $stdOutTmp) { Get-Content -LiteralPath $stdOutTmp -Raw } else { '' }
         StdErr       = if (Test-Path $stdErrTmp) { Get-Content -LiteralPath $stdErrTmp -Raw } else { '' }
-        Invocations  = if (Test-Path $invocationsPath) { Get-Content -LiteralPath $invocationsPath } else { @() }
+        Invocations  = @(if (Test-Path $invocationsPath) { Get-Content -LiteralPath $invocationsPath } else { @() })
         StateRoot    = $stateRoot
         HistoryPath  = Join-Path $stateRoot 'history.jsonl'
         CacheDir     = Join-Path $stateRoot 'cache'
