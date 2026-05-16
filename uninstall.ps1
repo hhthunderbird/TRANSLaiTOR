@@ -124,15 +124,31 @@ if (Test-Path -LiteralPath $cmdFile) {
 }
 
 # --- PATHEXT ---
+# Honor the stamp shape written by install.ps1:
+#   - json + Seeded=true + current matches writtenValue -> restore PreviousValue
+#     (typically empty, letting Machine PATHEXT govern again — undoes the override)
+#   - json + Seeded=true + user diverged -> surgical remove-entry (preserve edits)
+#   - json + Seeded=false -> surgical remove-entry
+#   - legacy stamp (pre-fix install) -> surgical remove-entry
+#   - missing stamp -> no-op (we did not add the entry)
 $pathExtStampPath = Join-Path $env:USERPROFILE '.cprompt\.pathext-stamp'
 $userExt = [Environment]::GetEnvironmentVariable('PATHEXT', 'User')
-if (Test-PathExtShouldRemove -PathExtString $userExt -Entry '.PS1' -StampPath $pathExtStampPath) {
-    $newExt = Remove-PathEntry -PathString $userExt -Entry '.PS1'
-    Update-UserEnv -Name 'PATHEXT' -NewValue $newExt
-    Remove-Item -LiteralPath $pathExtStampPath -Force -ErrorAction SilentlyContinue
-    Write-Host 'PATHEXT (user) limpo: .PS1 removido (instalado por install.ps1).' -ForegroundColor DarkGreen
-} else {
-    Write-Host 'PATHEXT (user) preservado: .PS1 nao foi adicionado por install.ps1 (sem stamp).' -ForegroundColor DarkGray
+$stamp   = Read-PathExtStamp -Path $pathExtStampPath
+$decision = Resolve-UserPathExtForUninstall -CurrentUserPathExt $userExt -Stamp $stamp
+switch ($decision.Action) {
+    'restore-previous' {
+        Update-UserEnv -Name 'PATHEXT' -NewValue $decision.Value
+        Remove-Item -LiteralPath $pathExtStampPath -Force -ErrorAction SilentlyContinue
+        Write-Host 'PATHEXT (user) restaurado ao valor pre-install (Machine PATHEXT volta a governar).' -ForegroundColor DarkGreen
+    }
+    'remove-entry' {
+        Update-UserEnv -Name 'PATHEXT' -NewValue $decision.Value
+        Remove-Item -LiteralPath $pathExtStampPath -Force -ErrorAction SilentlyContinue
+        Write-Host 'PATHEXT (user) limpo: .PS1 removido (instalado por install.ps1).' -ForegroundColor DarkGreen
+    }
+    default {
+        Write-Host 'PATHEXT (user) preservado: .PS1 nao foi adicionado por install.ps1 (sem stamp ou entry ausente).' -ForegroundColor DarkGray
+    }
 }
 
 # --- Base model (opt-in) ---
