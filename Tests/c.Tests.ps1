@@ -1,48 +1,58 @@
-$here = Split-Path -Parent $MyInvocation.MyCommand.Path
-$repoRoot = Split-Path -Parent $here
-$script:cPs1 = Join-Path $repoRoot 'c.ps1'
+BeforeAll {
+    $here = $PSScriptRoot
+    $repoRoot = Split-Path -Parent $here
+    $script:cPs1 = Join-Path $repoRoot 'c.ps1'
 
-# Subprocess driver: invoke c.ps1 under a fresh powershell.exe with an
-# isolated USERPROFILE (state dir = $isolatedHome\.cprompt) and an
-# optional PATH override (used to hide `claude` for -Send tests).
-function Invoke-CScript {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][AllowEmptyCollection()][string[]]$Args,
-        [Parameter(Mandatory)][string]$IsolatedHome,
-        [string]$PathOverride
-    )
-    if (-not (Test-Path -LiteralPath $IsolatedHome)) {
-        New-Item -ItemType Directory -Path $IsolatedHome -Force | Out-Null
-    }
-
-    $psArgs = @('-NoProfile', '-NonInteractive', '-File', $script:cPs1)
-    if ($Args -and $Args.Count -gt 0) { $psArgs += $Args }
-
-    $prevHome = $env:USERPROFILE
-    $prevPath = $env:PATH
-    try {
-        $env:USERPROFILE = $IsolatedHome
-        if ($PSBoundParameters.ContainsKey('PathOverride')) {
-            $env:PATH = $PathOverride
+    # Subprocess driver: invoke c.ps1 under a fresh powershell.exe with an
+    # isolated USERPROFILE (state dir = $isolatedHome\.cprompt) and an
+    # optional PATH override (used to hide `claude` for -Send tests).
+    function Invoke-CScript {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)][AllowEmptyCollection()][string[]]$Args,
+            [Parameter(Mandatory)][string]$IsolatedHome,
+            [string]$PathOverride
+        )
+        if (-not (Test-Path -LiteralPath $IsolatedHome)) {
+            New-Item -ItemType Directory -Path $IsolatedHome -Force | Out-Null
         }
-        $stdout = & powershell.exe @psArgs 2>&1 | Out-String
-        $exit = $LASTEXITCODE
-    } finally {
-        $env:USERPROFILE = $prevHome
-        $env:PATH = $prevPath
-    }
 
-    return [pscustomobject]@{ ExitCode = $exit; StdOut = $stdout }
+        $psArgs = @('-NoProfile', '-NonInteractive', '-File', $script:cPs1)
+        if ($Args -and $Args.Count -gt 0) { $psArgs += $Args }
+
+        $prevHome = $env:USERPROFILE
+        $prevPath = $env:PATH
+        try {
+            $env:USERPROFILE = $IsolatedHome
+            if ($PSBoundParameters.ContainsKey('PathOverride')) {
+                $env:PATH = $PathOverride
+            }
+            $tmpOut = [System.IO.Path]::GetTempFileName()
+            $tmpErr = "$tmpOut.err"
+            $proc = Start-Process -FilePath 'powershell.exe' -ArgumentList $psArgs `
+                -NoNewWindow -Wait -PassThru `
+                -RedirectStandardOutput $tmpOut `
+                -RedirectStandardError $tmpErr
+            $exit = $proc.ExitCode
+            $stdout = (Get-Content -LiteralPath $tmpOut -Raw -ErrorAction SilentlyContinue) +
+                      (Get-Content -LiteralPath $tmpErr -Raw -ErrorAction SilentlyContinue)
+            Remove-Item -LiteralPath $tmpOut, $tmpErr -ErrorAction SilentlyContinue
+        } finally {
+            $env:USERPROFILE = $prevHome
+            $env:PATH = $prevPath
+        }
+
+        return [pscustomobject]@{ ExitCode = $exit; StdOut = $stdout }
+    }
 }
 
 Describe 'c.ps1 -Help' {
     It 'exits 0 and prints the usage banner' {
         $tmpHome = Join-Path $TestDrive 'home-help'
         $res = Invoke-CScript -Args @('-Help') -IsolatedHome $tmpHome
-        $res.ExitCode | Should Be 0
-        $res.StdOut   | Should Match 'TRANSLaiTOR'
-        $res.StdOut   | Should Match 'uso:'
+        $res.ExitCode | Should -Be 0
+        $res.StdOut   | Should -Match 'TRANSLaiTOR'
+        $res.StdOut   | Should -Match 'uso:'
     }
 }
 
@@ -50,8 +60,8 @@ Describe 'c.ps1 with no prompt' {
     It 'exits 1 and shows usage when no positional prompt is supplied' {
         $tmpHome = Join-Path $TestDrive 'home-noprompt'
         $res = Invoke-CScript -Args @() -IsolatedHome $tmpHome
-        $res.ExitCode | Should Be 1
-        $res.StdOut   | Should Match 'TRANSLaiTOR'
+        $res.ExitCode | Should -Be 1
+        $res.StdOut   | Should -Match 'TRANSLaiTOR'
     }
 }
 
@@ -60,8 +70,8 @@ Describe 'c.ps1 input validation' {
         $tmpHome = Join-Path $TestDrive 'home-oversize'
         $oversized = 'x' * 5000
         $res = Invoke-CScript -Args @($oversized) -IsolatedHome $tmpHome
-        $res.ExitCode | Should Be 1
-        $res.StdOut   | Should Match '(?i)invalido'
+        $res.ExitCode | Should -Be 1
+        $res.StdOut   | Should -Match '(?i)invalido'
     }
 }
 
@@ -69,8 +79,8 @@ Describe 'c.ps1 -Last' {
     It 'exits 7 with "historico vazio" when no history exists' {
         $tmpHome = Join-Path $TestDrive 'home-emptyhist'
         $res = Invoke-CScript -Args @('-Last') -IsolatedHome $tmpHome
-        $res.ExitCode | Should Be 7
-        $res.StdOut   | Should Match '(?i)historico vazio'
+        $res.ExitCode | Should -Be 7
+        $res.StdOut   | Should -Match '(?i)historico vazio'
     }
 
     It 'exits 0 and prints the last XML when a history entry exists' {
@@ -87,9 +97,9 @@ Describe 'c.ps1 -Last' {
         [System.IO.File]::WriteAllText($historyPath, "$line`n", (New-Object System.Text.UTF8Encoding($false)))
 
         $res = Invoke-CScript -Args @('-Last', '-Raw') -IsolatedHome $tmpHome
-        $res.ExitCode | Should Be 0
-        $res.StdOut   | Should Match '<task>R</task>'
-        $res.StdOut   | Should Match '<constraints>T</constraints>'
+        $res.ExitCode | Should -Be 0
+        $res.StdOut   | Should -Match '<task>R</task>'
+        $res.StdOut   | Should -Match '<constraints>T</constraints>'
     }
 }
 
@@ -108,9 +118,9 @@ Describe 'c.ps1 zero-friction default (Q&A is opt-in)' {
         # refiner-questions block from an interactive terminal. Must
         # exit 0 (compiler XML or raw fallback), NOT crash on Read-Host.
         $res = Invoke-CScript -Args @('-Raw', 'qual é a nossa próxima tarefa na lista?') -IsolatedHome $tmpHome
-        $res.ExitCode | Should Be 0
+        $res.ExitCode | Should -Be 0
         # stdout must contain SOMETHING (either valid XML or raw fallback)
-        $res.StdOut.Trim().Length -gt 0 | Should Be $true
+        $res.StdOut.Trim().Length -gt 0 | Should -Be $true
     }
 
     It 'conversational/meta prompt without -Raw still terminates without Q&A hang (case B)' {
@@ -120,7 +130,7 @@ Describe 'c.ps1 zero-friction default (Q&A is opt-in)' {
         # default still blocks, this would crash with a Read-Host error.
         # With the new opt-in default it must exit 0 and proceed to the
         # compiler (or fall back to raw input).
-        $res.ExitCode | Should Be 0
+        $res.ExitCode | Should -Be 0
     }
 
     It 'short input (<4 words) does not block on zero-signal pre-gate by default' {
@@ -128,7 +138,7 @@ Describe 'c.ps1 zero-friction default (Q&A is opt-in)' {
         # Previously the pre-gate fired Read-Host unconditionally; the only
         # escape was -NonInteractive. New default must auto-skip the Q&A.
         $res = Invoke-CScript -Args @('go') -IsolatedHome $tmpHome
-        $res.ExitCode | Should Be 0
+        $res.ExitCode | Should -Be 0
     }
 
     It '-Interactive flag is documented in the help banner' {
@@ -139,8 +149,8 @@ Describe 'c.ps1 zero-friction default (Q&A is opt-in)' {
         # Word-boundary match to avoid matching -NonInteractive.
         $tmpHome = Join-Path $TestDrive 'home-help-interactive'
         $res = Invoke-CScript -Args @('-Help') -IsolatedHome $tmpHome
-        $res.ExitCode | Should Be 0
-        $res.StdOut   | Should Match '(?<![A-Za-z])-Interactive\b'
+        $res.ExitCode | Should -Be 0
+        $res.StdOut   | Should -Match '(?<![A-Za-z])-Interactive\b'
     }
 }
 
@@ -152,6 +162,6 @@ Describe 'c.ps1 -NonInteractive (legacy alias, now a no-op)' {
     It 'accepts -NonInteractive without parameter-binding errors' {
         $tmpHome = Join-Path $TestDrive 'home-noni-alias'
         $res = Invoke-CScript -Args @('-NonInteractive', '-Raw', '-NoRefine', 'sistema de tiro no ecs unity') -IsolatedHome $tmpHome
-        $res.ExitCode | Should Be 0
+        $res.ExitCode | Should -Be 0
     }
 }
