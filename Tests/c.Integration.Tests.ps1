@@ -177,3 +177,26 @@ Describe 'c.ps1 -Send' {
         $r.Invocations | Should -Contain 'claude'
     }
 }
+
+Describe 'c.ps1 zero-signal pre-gate' {
+    It 'with -Interactive and short input, pre-gate Q runs, refiner is skipped, only compiler invokes' {
+        $r = Invoke-CIntegration `
+            -TestDrive $TestDrive `
+            -RepoRoot $script:repoRoot `
+            -Fixture (Join-Path $script:fixtures 'compiler-valid-xml.json') `
+            -Args @('-Interactive','cache') `
+            -StdIn "area backend, problema slow query, stack postgres`n"
+
+        $r.ExitCode    | Should -Be 0
+        $r.Invocations | Should -Be @('prompt-opt')   # refiner SKIPPED by pre-gate
+
+        $histLine = Get-Content -LiteralPath $r.HistoryPath | Where-Object { $_.Trim() } | Select-Object -Last 1
+        $hist = $histLine | ConvertFrom-Json
+        $hist.input | Should -Match 'postgres'
+        $hist.refined | Should -BeTrue
+
+        $metricsLine = Get-Content -LiteralPath $r.MetricsPath | Where-Object { $_.Trim() } | Select-Object -Last 1
+        $metrics = $metricsLine | ConvertFrom-Json
+        $metrics.mode | Should -Be 'pregate'
+    }
+}
