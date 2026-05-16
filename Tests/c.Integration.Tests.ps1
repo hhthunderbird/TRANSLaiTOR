@@ -20,3 +20,19 @@ Describe 'c.ps1 -NoRefine (compiler-only)' {
         (Get-ChildItem -LiteralPath $r.CacheDir -File).Count | Should -BeGreaterThan 0
     }
 }
+
+Describe 'c.ps1 refiner passthrough -> compiler' {
+    It 'invokes refiner then compiler, both invocations recorded, XML persisted in history' {
+        $r = Invoke-CIntegration `
+            -TestDrive $TestDrive `
+            -RepoRoot $script:repoRoot `
+            -Fixture (Join-Path $script:fixtures 'combo-passthrough-valid.json') `
+            -Args @('sistema ecs unity 3d game')
+
+        $r.ExitCode    | Should -Be 0
+        $r.Invocations | Should -Be @('prompt-refiner','prompt-opt')
+        Test-Path $r.HistoryPath | Should -BeTrue
+        $hist = Get-Content -LiteralPath $r.HistoryPath -Raw | ConvertFrom-Json
+        $hist.xml | Should -Match '<task>fixture task body</task>'
+    }
+}
