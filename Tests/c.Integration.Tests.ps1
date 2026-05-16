@@ -36,3 +36,49 @@ Describe 'c.ps1 refiner passthrough -> compiler' {
         $hist.xml | Should -Match '<task>fixture task body</task>'
     }
 }
+
+Describe 'c.ps1 cache behavior' {
+    It 'second run with same args serves compiler output from cache (refiner still runs)' {
+        $fixture = Join-Path $script:fixtures 'combo-passthrough-valid.json'
+
+        $run1 = Invoke-CIntegration `
+            -TestDrive $TestDrive `
+            -RepoRoot $script:repoRoot `
+            -Fixture $fixture `
+            -Args @('sistema ecs unity 3d game')
+        $run1.ExitCode    | Should -Be 0
+        $run1.Invocations | Should -Be @('prompt-refiner','prompt-opt')
+
+        # Re-run with the SAME $TestDrive so cache+state carry over. Note:
+        # Invoke-CIntegration resets invocations.txt at the start of each call,
+        # so $run2.Invocations reflects only what happened during run2.
+        $run2 = Invoke-CIntegration `
+            -TestDrive $TestDrive `
+            -RepoRoot $script:repoRoot `
+            -Fixture $fixture `
+            -Args @('sistema ecs unity 3d game')
+        $run2.ExitCode    | Should -Be 0
+        $run2.Invocations | Should -Be @('prompt-refiner')   # compiler served from cache
+    }
+
+    It '-NoCache on second run forces compiler call even when cache file exists' {
+        $fixture = Join-Path $script:fixtures 'combo-passthrough-valid.json'
+
+        # run1 seeds the cache (cache from the previous It may also already exist —
+        # $TestDrive is per-Describe in Pester 5, so state carries over).
+        $run1 = Invoke-CIntegration `
+            -TestDrive $TestDrive `
+            -RepoRoot $script:repoRoot `
+            -Fixture $fixture `
+            -Args @('sistema ecs unity 3d game')
+        # No assertion on run1.Invocations: cache may or may not be warm here.
+        # What matters is that the cache file now exists before run2.
+
+        $run2 = Invoke-CIntegration `
+            -TestDrive $TestDrive `
+            -RepoRoot $script:repoRoot `
+            -Fixture $fixture `
+            -Args @('-NoCache','sistema ecs unity 3d game')
+        $run2.Invocations | Should -Be @('prompt-refiner','prompt-opt')
+    }
+}
