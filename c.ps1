@@ -18,7 +18,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $script:MaxInputChars = 4000
-$script:StateRoot     = Join-Path $env:USERPROFILE '.cprompt'
+$script:StateRoot     = if ($env:CPROMPT_STATE_ROOT) { $env:CPROMPT_STATE_ROOT } else { Join-Path $env:USERPROFILE '.cprompt' }
 $script:CacheDir      = Join-Path $script:StateRoot 'cache'
 $script:HistoryPath   = Join-Path $script:StateRoot 'history.jsonl'
 
