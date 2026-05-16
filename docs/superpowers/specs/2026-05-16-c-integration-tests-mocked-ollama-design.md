@@ -65,14 +65,16 @@ Zero behavioural change in production (the env var is unset). Tests set the env 
 
 **Invocation surface:** `ollama run [--nowordwrap] <model-name>` with prompt text on stdin.
 
+**Stub does NOT set StrictMode.** Strict-mode + empty-array indexing (`@()[-1]`) throws instead of returning `$null`. The parser uses an explicit length check (see below).
+
 **Stub responsibilities:**
 1. Drain stdin to EOF (`[Console]::In.ReadToEnd() | Out-Null`) so the parent's pipe writer doesn't block.
-2. Parse the last non-flag, non-keyword arg in `$args` as the model name (skip `run`, `--nowordwrap`, future `--<flag>` tokens).
+2. Filter `$args` to non-flag, non-keyword tokens (drop `run`, anything starting with `--`). If the filtered array is empty, write `stub: no model arg in: $args` to stderr and exit 1. Otherwise, take the last element as the model name.
 3. Append the model name to `$env:CPROMPT_TEST_INVOCATIONS` (a file path) if set, so tests can count calls.
-4. Read `$env:CPROMPT_TEST_FIXTURE` (JSON file), look up the model key, write its string value to stdout via `[Console]::Out.Write()` (raw — no extra newline, no BOM).
+4. Read `$env:CPROMPT_TEST_FIXTURE` (JSON file) using `Get-Content -Raw -Encoding UTF8`, trim a leading BOM character defensively (`$raw = $raw.TrimStart([char]0xFEFF)`), `ConvertFrom-Json`, look up the model key, write its string value to stdout via `[Console]::Out.Write()` (raw — no extra newline, no BOM).
 5. Exit 0 on success, exit 1 with a stderr line `stub: model '<x>' not in fixture` on miss.
 
-**Stub-claude contract:** identical pattern; reads stdin (which carries the XML), appends a single `claude` line to `$env:CPROMPT_TEST_INVOCATIONS`, prints `OK` to stdout, exit 0.
+**`claude-impl.ps1` contract:** drain stdin (which carries the XML produced by c.ps1, discard), ignore all `$args` (notably the `-p` flag c.ps1:304 passes), append a single `claude` line to `$env:CPROMPT_TEST_INVOCATIONS` if set, write `OK` to stdout via `[Console]::Out.Write()`, exit 0.
 
 ### Fixture format
 
@@ -89,14 +91,22 @@ The fixture filename describes the scenario (`refiner-passthrough.json`, `compil
 
 ### Test helper: `Invoke-CIntegration`
 
-A wrapper around `Start-Process powershell -NoProfile -File c.ps1 ...` that:
+Wrapper around `Start-Process powershell.exe -NoProfile -File c.ps1 ...` that:
 
-1. Sets `$env:Path = "$PSScriptRoot/integration;$env:Path"` so the stubs win the lookup.
+1. Builds a per-test bin directory at `$TestDrive/bin/`. For each entry in `-Stubs` (e.g. `@('ollama')` or `@('ollama','claude')`), copies the matching `<name>.cmd` and `<name>-impl.ps1` from `Tests/integration/` into the bin dir. This is how test #8 (`-Send` without `claude` on PATH) skips staging `claude.cmd` even though it lives in the integration folder.
 2. Sets `$env:CPROMPT_STATE_ROOT = $TestDrive/cprompt-state`.
 3. Sets `$env:CPROMPT_TEST_FIXTURE` to the fixture for this case.
-4. Sets `$env:CPROMPT_TEST_INVOCATIONS = $TestDrive/invocations.txt` (empty file pre-created).
-5. Launches c.ps1 with the requested args + optional stdin payload (for `-Interactive` Q&A answers).
-6. Returns `[pscustomobject]@{ ExitCode; StdOut; StdErr; Invocations; HistoryPath; CachePath; MetricsPath }` where the `*Path` properties point under `$TestDrive` for the test to read.
+4. Sets `$env:CPROMPT_TEST_INVOCATIONS = $TestDrive/invocations.txt` (file pre-created empty).
+5. Saves `$env:Path`, prepends `$TestDrive/bin` to it, then in `try { ... } finally { $env:Path = $savedPath }` launches:
+   ```powershell
+   $p = Start-Process powershell.exe -ArgumentList @(
+       '-NoProfile','-File',(Join-Path $repoRoot 'c.ps1'),@Args
+   ) -RedirectStandardInput $stdInTmp -RedirectStandardOutput $stdOutTmp -RedirectStandardError $stdErrTmp -Wait -PassThru -NoNewWindow
+   ```
+   `-StdIn` parameter content is written to `$stdInTmp` ahead of the call (empty string by default; closing the pipe immediately so any stray `Read-Host` returns at once).
+6. Returns `[pscustomobject]@{ ExitCode = $p.ExitCode; StdOut = Get-Content $stdOutTmp -Raw; StdErr = Get-Content $stdErrTmp -Raw; Invocations = Get-Content $invocationsPath; StateRoot; HistoryPath; CachePath; MetricsPath }` where the path properties point under `$TestDrive` for the test to read.
+
+The suite's `BeforeAll` performs a PATH-ordering gate: it stages just `ollama` into `$TestDrive/bin`, prepends it, and asserts `(Get-Command ollama).Source` resolves to that copy. If a real `ollama.exe` wins, the suite aborts with a clear message rather than silently running against the production binary.
 
 ### Data flow
 
@@ -120,17 +130,17 @@ Pester It block
 | # | Name | Args | Fixture | StdIn | Asserts |
 |---|------|------|---------|-------|---------|
 | 1 | refiner passthrough → compiler valid XML | `'sistema ecs unity'` | refiner-passthrough + compiler-valid | none | exit 0, stdout contains `<task>`, history has 1 entry, cache file exists, invocations = `prompt-refiner` then `prompt-opt` |
-| 2 | cache hit on second run | rerun #1 args | (same) | none | exit 0, second-run invocations file unchanged from first-run (only refiner ran; compiler served from cache). Note: refiner runs each invocation because the cache is keyed on post-refinement input — assertion is `compiler invoked twice across both runs minus 1 = 1`. See "Open question" below. |
+| 2 | cache hit on second run | rerun #1 args | (same) | none | exit 0. Refiner runs every invocation (cache lookup happens after refinement, c.ps1:131-201). Expected invocations file content after both runs (in order): `prompt-refiner`, `prompt-opt`, `prompt-refiner`. That is, 2 refiner lines + 1 compiler line — compiler served from cache on run 2. Assert exactly those three lines, in that order. |
 | 3 | `-NoCache` forces compiler call | `'-NoCache','sistema ecs unity'` after #1 | compiler-valid | none | exit 0, compiler invocation count incremented |
 | 4 | refiner emits questions + `-Interactive` + answered | `'-Interactive','cache'` | refiner-questions + compiler-valid | `"redis local"` | exit 0, history.input includes both raw text and answer, metricMode = `questions` |
 | 5 | refiner emits questions, no `-Interactive` (default) | `'cache'` | refiner-questions + compiler-valid | none | exit 0, metricMode = `questions-skip`, compiler receives raw input verbatim |
 | 6 | `-NoRefine` skips refiner | `'-NoRefine','x'` | compiler-valid only | none | exit 0, invocations = `prompt-opt` only (no refiner call), metricMode = `raw` |
 | 7 | compiler emits non-XML → frictionless fallback | `'-NoRefine','x'` | compiler-fallback-nonxml | none | exit 0, stdout contains `AVISO: otimizador nao produziu XML`, no cache file written, metricMode = `fallback` |
-| 8 | `-Send` without `claude` on PATH | `'-Send','-NoRefine','x'` | compiler-valid | none | exit 8, stdout contains `claude` CLI not found message |
-| 9 | `-Send` with stub-claude on PATH | `'-Send','-NoRefine','x'` (with claude.cmd staged) | compiler-valid | none | exit 0, invocations contains `claude` entry |
+| 8 | `-Send` without `claude` on PATH | `'-Send','-NoRefine','x'` (helper called with `-Stubs @('ollama')`) | compiler-valid | none | exit 8, stdout contains `claude` CLI not found message |
+| 9 | `-Send` with claude stub on PATH | `'-Send','-NoRefine','x'` (helper called with `-Stubs @('ollama','claude')`) | compiler-valid | none | exit 0, invocations contains `claude` entry |
 | 10 | zero-signal pre-gate + `-Interactive` | `'-Interactive','x'` | (no models needed) | `"area X problema Y stack Z"` | exit 0, metricMode = `pregate`, compiler receives merged input |
 
-**Open question on test #2:** the cache key is computed over `(Model, post-refinement-userInput)`. If the refiner is `passthrough`, `userInput == rawInput`, so the key is stable across runs — second-run compiler hits the cache. If the refiner mutates the input (e.g., answered Q&A in #4), keys diverge and there is no hit. Test #2 must use a passthrough scenario for the cache hit to be deterministic. Documented; no design impact.
+**Cache key constraint:** the cache key is computed over `(Model, post-refinement-userInput)`. Test #2 uses a passthrough refiner fixture so `userInput == rawInput` on both runs and the keys collide → cache hit. Q&A-driven scenarios (test #4) mutate `userInput` between runs, so they cannot reuse this assertion shape.
 
 ## Error handling
 
@@ -151,8 +161,8 @@ Smoke after wiring: `./Tests/integration/ollama.cmd run --nowordwrap prompt-opt 
 
 | Risk | Mitigation |
 |------|------------|
-| PATH ordering on the subprocess fails (real `ollama.exe` resolves first) | Prepend `Tests/integration` to `$env:Path` in `Invoke-CIntegration`, verified by a setup-time assertion that `Get-Command ollama` resolves to the stub. |
-| Stub reads BOM-prefixed UTF8 fixture and emits BOM | Read fixtures with `Get-Content -Raw -Encoding UTF8` (which strips BOM in PS 5.1) and write with `[Console]::Out.Write()` (raw, no encoding wrapper). |
+| PATH ordering on the subprocess fails (real `ollama.exe` resolves first) | Suite `BeforeAll` stages stubs into `$TestDrive/bin`, prepends to PATH, asserts `(Get-Command ollama).Source` resolves to the stub or aborts the run with a clear message. Helper saves/restores `$env:Path` per call via try/finally. |
+| Stub reads BOM-prefixed UTF8 fixture and emits BOM | Read fixtures with `Get-Content -Raw -Encoding UTF8`, defensively `TrimStart([char]0xFEFF)` before `ConvertFrom-Json`, write output with `[Console]::Out.Write()` (raw, no encoding wrapper). Fixture files should be saved as UTF-8 no-BOM in the repo. |
 | `Read-Host` in c.ps1 hangs waiting for input when the test forgot to pass stdin | Always launch `Invoke-CIntegration` with `-StdIn ''` by default so the pipe is closed; only pass an explicit stdin payload for tests #4 and #10. |
 | `Set-Clipboard` pollutes the host clipboard during CI | Tests do not assert on clipboard. Accepted side-effect; documented. |
 | Stub arg parser breaks if ollama adds a future `--flag <value>` (value would be picked as model) | Parser is documented as "last non-flag, non-keyword arg." If ollama's CLI shape changes, update the stub. Low likelihood — production `Invoke-OllamaModel` only ever passes `run --nowordwrap <model>`. |
