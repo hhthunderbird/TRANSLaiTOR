@@ -38,7 +38,10 @@ function Invoke-CIntegration {
     $savedInv = $env:CPROMPT_TEST_INVOCATIONS
     $savedRoot = $env:CPROMPT_STATE_ROOT
     try {
-        $env:Path = "$binDir;$env:Path"
+        # Minimal isolated PATH: stubs first, then only OS essentials so child
+        # powershell.exe, cmd.exe, and Set-Clipboard can be found, but no
+        # dev-installed tools (e.g. real claude.exe) leak in.
+        $env:Path = "$binDir;$env:SystemRoot\System32;$env:SystemRoot;$env:SystemRoot\System32\WindowsPowerShell\v1.0"
         $env:CPROMPT_TEST_FIXTURE = $Fixture
         $env:CPROMPT_TEST_INVOCATIONS = $invocationsPath
         $env:CPROMPT_STATE_ROOT = $stateRoot

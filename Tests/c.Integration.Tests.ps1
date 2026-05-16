@@ -150,3 +150,30 @@ Describe 'c.ps1 frictionless fallback' {
         $metrics.mode | Should -Be 'fallback'
     }
 }
+
+Describe 'c.ps1 -Send' {
+    It 'exits 8 with error message when claude is not on PATH' {
+        $r = Invoke-CIntegration `
+            -TestDrive $TestDrive `
+            -RepoRoot $script:repoRoot `
+            -Fixture (Join-Path $script:fixtures 'compiler-valid-xml.json') `
+            -Args @('-Send','-NoRefine','sistema ecs unity') `
+            -Stubs @('ollama')   # NB: no claude staged
+
+        $r.ExitCode | Should -Be 8
+        $r.StdOut   | Should -Match "'claude' CLI nao encontrado"
+        $r.Invocations | Should -Not -Contain 'claude'
+    }
+
+    It 'with claude on PATH, pipes XML and exits with claude exit code' {
+        $r = Invoke-CIntegration `
+            -TestDrive $TestDrive `
+            -RepoRoot $script:repoRoot `
+            -Fixture (Join-Path $script:fixtures 'compiler-valid-xml.json') `
+            -Args @('-Send','-NoRefine','sistema ecs unity') `
+            -Stubs @('ollama','claude')
+
+        $r.ExitCode    | Should -Be 0
+        $r.Invocations | Should -Contain 'claude'
+    }
+}
