@@ -62,7 +62,17 @@ try {
     # `-NonInteractive` suppresses any Read-Host in c.ps1 (zero-signal pre-gate
     # and refiner questions branch) so the hook never blocks. `-Raw` keeps the
     # output to a single XML line on stdout.
-    $xml = & $cps -NonInteractive -Raw $trim 2>$null
+    #
+    # Stream redirects (all three streams must die before reaching this
+    # subprocess's stdout, which CC captures as authoritative context):
+    #   2>$null  error stream (ollama spinner stderr, etc).
+    #   3>$null  warning stream (`Write-Warning` in c.ps1).
+    #   6>$null  information stream — c.ps1 uses `Write-Host` for status and
+    #            AVISO fallback messages. In a non-tty subprocess like this
+    #            hook, PS routes Write-Host through powershell.exe stdout,
+    #            and without this redirect those messages get injected as
+    #            authoritative refinement.
+    $xml = & $cps -NonInteractive -Raw $trim 2>$null 3>$null 6>$null
     if ($LASTEXITCODE -ne 0) { exit 0 }
     $xml = ($xml | Out-String).Trim()
     if (-not $xml) { exit 0 }
