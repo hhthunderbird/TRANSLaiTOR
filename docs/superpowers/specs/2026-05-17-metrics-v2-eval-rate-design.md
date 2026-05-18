@@ -34,30 +34,48 @@ New optional `-CaptureStats` switch:
 
 - Off (default): unchanged. Returns string. All existing callers continue
   to work without edits.
-- On: invokes `ollama run --verbose --nowordwrap $Model`. Captures stderr
-  to a temp file (instead of discarding via `2>$null`), reads it after the
-  process exits, deletes the temp file, and returns
-  `[pscustomobject]@{ Text=<stdout-string>; Stats=<hashtable-or-null> }`.
+- On: invokes `ollama run --verbose --nowordwrap $Model` via
+  `System.Diagnostics.Process` (NOT the PowerShell pipeline). The Process
+  API captures stdout and stderr separately as raw bytes. After
+  `WaitForExit()`, stdout becomes `.Text` and stderr is run through
+  `Remove-AnsiEscapes` (already exported by this module — strips the
+  spinner control sequences) and then `ConvertFrom-OllamaVerboseStats`.
+  Returns `[pscustomobject]@{ Text=<string>; Stats=<hashtable-or-null> }`.
 
-Stderr is parsed via the new helper below. Parse failure returns
-`Stats=$null`; the call itself is never failed by stat parsing.
+Rationale for `System.Diagnostics.Process` over `& ollama ... 2>$file`:
+PS 5.1 wraps native-command stderr as `NativeCommandError` records and
+writes that mangled form to the file, mixing PS error headers into the
+captured bytes. Verified on Ollama 0.24.0: `2>$file` produces output like
+`ollama.exe : [?2026h...total duration: 4.0391184s ... At line:1 char:146
++ ... | & ollama run --verbose ...`. The Process API bypasses the PS
+stream wrapping entirely.
 
-### `Parse-OllamaVerboseStats` (cprompt.psm1, exported)
+Parse failure returns `Stats=$null`; the call itself is never failed by
+stat parsing.
 
-Pure function. Input: stderr text. Output: hashtable or `$null`.
+### `ConvertFrom-OllamaVerboseStats` (cprompt.psm1, exported)
 
-Recognized fields (regex, case-insensitive, tolerant of formatting drift):
+Pure function. Input: stderr text (already ANSI-stripped). Output:
+hashtable or `$null`. Verb-Noun naming follows module convention
+(`Get-CachedXml`, `Get-RefinerOutput`, `Resolve-CompilerFallback`).
+
+Recognized fields (regex, case-insensitive, tolerant of `token(s)` and
+whitespace drift):
 
 ```
-prompt eval count:    <int>          → promptEvalCount
-prompt eval duration: <ms|s|m>       → promptEvalDurationMs
-eval count:           <int>          → evalCount
-eval duration:        <ms|s|m>       → evalDurationMs
-eval rate:            <float> tokens/s → evalRate
+prompt eval count:    <int> token(s)?       → promptEvalCount
+prompt eval duration: <float>(ms|s)         → promptEvalDurationMs
+eval count:           <int> token(s)?       → evalCount
+eval duration:        <float>(ms|s)         → evalDurationMs
+eval rate:            <float> tokens/s      → evalRate
 ```
+
+Duration unit handling: `ms` → as-is rounded to int; `s` → multiply by
+1000, round to int. Ollama 0.24.0 emits only `ms` and `s` (verified
+sample: `40.8138ms`, `4.0391184s`). No minute support.
 
 Returns hashtable containing only the fields that matched. If none match,
-returns `$null`. Duration parsing must handle `12.345s`, `200ms`, `1m30s`.
+returns `$null`.
 
 ### c.ps1 metrics wiring
 
@@ -68,12 +86,20 @@ Two changes, both isolated to the existing metrics block (lines ~264-287):
    `$refinerStats` and `$compilerStats`.
 2. The metrics entry gains two opt-in keys (added only when the value is
    non-null):
-   - `compilerEval`: hashtable from `Parse-OllamaVerboseStats`.
-   - `refinerEval`: same shape, only present when refiner actually ran
-     (not on `-NoRefine`, not on refiner passthrough).
+   - `compilerEval`: hashtable from `ConvertFrom-OllamaVerboseStats`.
+   - `refinerEval`: same shape. Present whenever `Invoke-OllamaModel` was
+     actually called for the refiner AND parse returned non-null. This
+     covers `mode=passthrough`, `mode=questions`, `mode=questions-skip`,
+     and even `mode=skip` (when refiner ran but its output was garbage)
+     — refiner ran the model in all of those cases, so eval stats exist.
+     Refiner stats are absent only when refiner was bypassed entirely
+     (`-NoRefine`, no ollama on PATH at refiner stage, or
+     `Invoke-OllamaModel` threw).
 
-Cache-hit runs do not invoke ollama, so neither field is populated. This
-matches the existing convention (no `compilerMs` either on cache hits).
+Cache-hit runs do not invoke the compiler, so `compilerEval` is absent;
+the refiner may still have run, so `refinerEval` may still be present.
+This matches the existing convention (`compilerMs` is also absent on
+cache hits while `refinerMs` may have a value).
 
 ### `cstats` surface (cstats.ps1 + Get-MetricsSummary)
 
@@ -103,7 +129,7 @@ runs but not summary-worthy.
 ```jsonl
 {
   "ts": "...", "model": "prompt-opt", "refinerModel": "prompt-refiner",
-  "mode": "compiled", "inputChars": 42, "refinedChars": 38, "xmlChars": 220,
+  "mode": "passthrough", "inputChars": 42, "refinedChars": 38, "xmlChars": 220,
   "refinerMs": 350, "compilerMs": 8200, "totalMs": 8600, "cacheHit": false,
   "flags": { "Raw": false, "NoRefine": false, "Send": false },
   "compilerEval": {
@@ -125,14 +151,15 @@ percentile/median computations skip entries that lack the field.
 
 ### Unit (Tests/cprompt.Tests.ps1)
 
-- `Parse-OllamaVerboseStats`:
-  - Full canonical stderr block → all five fields populated, durations in
-    ms.
+- `ConvertFrom-OllamaVerboseStats`:
+  - Full canonical stderr block (with `token(s)` suffix, mixed `ms`/`s`)
+    → all five fields populated, durations in ms.
   - Partial stderr (only `eval count` + `eval rate`) → only those keys
     present.
+  - ANSI-polluted stderr after `Remove-AnsiEscapes` pre-clean → parses.
   - Empty / unrelated stderr → `$null`.
-  - Duration unit parsing: `12.345s` → 12345, `200ms` → 200, `1m30s` →
-    90000.
+  - Duration unit parsing: `12.345s` → 12345, `200ms` → 200,
+    `40.8138ms` → 41.
 - `Get-MetricsSummary` with entries containing `compilerEval`:
   - p50 / p95 of evalRate match hand-computed values.
   - Median evalCount matches.
@@ -140,26 +167,49 @@ percentile/median computations skip entries that lack the field.
 
 ### Integration (Tests/c.Integration.Tests.ps1)
 
-- New env `CPROMPT_TEST_EVAL_STATS` recognized by ollama-impl.ps1: when
-  set to a JSON object keyed by model, the stub also writes a synthetic
-  verbose block to stderr (matching the canonical ollama format) before
-  exiting.
-- New It block "compiler eval stats land in metrics entry": runs c.ps1,
-  reads last `metrics.jsonl` entry, asserts `compilerEval.evalRate` is a
-  number > 0 and `compilerEval.evalCount` matches the fixture.
+- The existing fixture JSON files (`Tests/integration/fixtures/*.json`)
+  gain an optional `verbose` key per model entry, e.g.:
 
-No new fixtures required beyond extending the existing JSON files with an
-optional `verbose` key per model.
+  ```json
+  {
+    "prompt-opt": "<task>...</task>...",
+    "prompt-opt.verbose": "prompt eval count: 50 token(s)\nprompt eval duration: 100ms\neval count: 120 token(s)\neval duration: 6.0s\neval rate: 20.0 tokens/s\n"
+  }
+  ```
+
+  ollama-impl.ps1 looks up `<model>.verbose` alongside `<model>` and, if
+  present, writes the verbose text to stderr before exiting. Single
+  mechanism — no new env var, no second source of truth.
+
+- New It block "compiler eval stats land in metrics entry": runs c.ps1
+  with a fixture containing `prompt-opt.verbose`, reads last
+  `metrics.jsonl` entry, asserts `compilerEval.evalRate` ≈ 20.0,
+  `compilerEval.evalCount` == 120, durations in ms.
+- New It block "refiner eval stats land when refiner runs in
+  passthrough mode": fixture with both `prompt-refiner.verbose` and
+  `prompt-opt.verbose`, mode=passthrough; both `refinerEval` and
+  `compilerEval` present.
+- New It block "no eval keys on cache hit": warm cache run, neither
+  `compilerEval` nor `refinerEval` present.
 
 ## Risks
 
 - **Ollama version drift.** `--verbose` field names and unit suffixes
   could change across releases. Mitigation: regex tolerant, parse failure
-  is silent, no caller depends on stats being present.
-- **Stderr capture races.** Temp file is read after `Out-String` consumes
-  stdout, which finalizes the pipeline. No race expected on Windows.
+  is silent, no caller depends on stats being present. Verified format
+  on 0.24.0; older versions may lack one or more fields, partial parse
+  is acceptable.
+- **Stderr capture timing.** `System.Diagnostics.Process.WaitForExit()`
+  guarantees the OS has flushed stderr before we read the captured
+  `StandardError` stream. No race.
+- **Spinner ANSI escapes.** `ollama run` writes a spinner control
+  sequence to stderr before printing stats. Mitigated by running
+  `Remove-AnsiEscapes` over the captured stderr before regex parsing.
 - **Performance.** `--verbose` adds no measurable overhead; stderr is
-  small (~150 bytes).
+  small (~200 bytes after ANSI strip).
+- **Backward compatibility.** Existing callers of `Invoke-OllamaModel`
+  (no `-CaptureStats`) get the same string return as before, same stderr
+  redirect path, same exit-code behavior.
 
 ## Out of scope (deferred follow-ups)
 
