@@ -135,12 +135,63 @@ function Invoke-OllamaModel {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Text,
-        [Parameter(Mandatory)][string]$Model
+        [Parameter(Mandatory)][string]$Model,
+        [switch]$CaptureStats
     )
-    # `2>$null` swallows the terminal progress spinner ollama prints to stderr.
-    # `--nowordwrap` keeps tag bodies on one logical line; ANSI escapes are
-    # still cleaned downstream by Remove-AnsiEscapes / Get-RefinerOutput.
-    return ($Text | & ollama run --nowordwrap $Model 2>$null | Out-String)
+
+    if (-not $CaptureStats) {
+        # Legacy path. `2>$null` swallows the terminal progress spinner ollama
+        # prints to stderr. `--nowordwrap` keeps tag bodies on one logical line;
+        # ANSI escapes are still cleaned downstream by Remove-AnsiEscapes /
+        # Get-RefinerOutput.
+        return ($Text | & ollama run --nowordwrap $Model 2>$null | Out-String)
+    }
+
+    # Stats path. Use System.Diagnostics.Process so stderr is captured raw —
+    # PS 5.1 wraps native stderr as NativeCommandError records when redirected
+    # via `2>$file`, which pollutes the bytes we need to regex-parse.
+    $cmd = Get-Command 'ollama' -ErrorAction Stop
+    $source = $cmd.Source
+
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $isShim = $source -match '\.(cmd|bat)$'
+    if ($isShim) {
+        # CreateProcess can't exec .cmd directly; route through cmd.exe.
+        $psi.FileName  = "$env:SystemRoot\System32\cmd.exe"
+        $psi.Arguments = '/c "' + $source + '" run --verbose --nowordwrap ' + $Model
+    } else {
+        $psi.FileName  = $source
+        $psi.Arguments = 'run --verbose --nowordwrap ' + $Model
+    }
+    $psi.UseShellExecute        = $false
+    $psi.RedirectStandardInput  = $true
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError  = $true
+    $psi.CreateNoWindow         = $true
+    $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8
+    $psi.StandardErrorEncoding  = [System.Text.Encoding]::UTF8
+
+    $p = [System.Diagnostics.Process]::Start($psi)
+
+    # Async stdout/stderr reads avoid deadlock if either stream fills its pipe
+    # buffer before WaitForExit. Stdin is written then closed.
+    $outTask = $p.StandardOutput.ReadToEndAsync()
+    $errTask = $p.StandardError.ReadToEndAsync()
+
+    $p.StandardInput.Write($Text)
+    $p.StandardInput.Close()
+
+    $p.WaitForExit()
+    $stdout = $outTask.GetAwaiter().GetResult()
+    $stderr = $errTask.GetAwaiter().GetResult()
+
+    # Propagate ollama exit code to $LASTEXITCODE for callers that check it.
+    $global:LASTEXITCODE = $p.ExitCode
+
+    $statsText = Remove-AnsiEscapes -Text $stderr
+    $stats = ConvertFrom-OllamaVerboseStats -Text $statsText
+
+    return [pscustomobject]@{ Text = $stdout; Stats = $stats }
 }
 
 function Get-CacheKey {

@@ -850,3 +850,96 @@ eval rate:            81.85 tokens/s
     }
 }
 
+Describe 'Invoke-OllamaModel -CaptureStats' -Tag 'integration' {
+    BeforeAll {
+        # Stand up a self-contained PATH-shim ollama for this Describe. We do
+        # NOT depend on Tests/integration/ollama-impl.ps1 (Task 3 owns that).
+        $script:binDir = Join-Path $TestDrive 'ol-bin'
+        New-Item -ItemType Directory -Path $script:binDir -Force | Out-Null
+
+        $implPath = Join-Path $script:binDir 'ollama-impl.ps1'
+@'
+[Console]::In.ReadToEnd() | Out-Null
+
+# Last non-flag, non-"run" arg is the model.
+$filtered = @($args | Where-Object { $_ -ne 'run' -and $_ -notlike '--*' })
+$model = $filtered[-1]
+
+if (-not $env:CPROMPT_T2_FIXTURE) {
+    [Console]::Error.WriteLine("t2-stub: CPROMPT_T2_FIXTURE not set")
+    exit 1
+}
+$raw = Get-Content -LiteralPath $env:CPROMPT_T2_FIXTURE -Raw -Encoding UTF8
+$raw = $raw.TrimStart([char]0xFEFF)
+$fixture = $raw | ConvertFrom-Json
+
+if (-not $fixture.PSObject.Properties[$model]) {
+    [Console]::Error.WriteLine("t2-stub: model '$model' not in fixture")
+    exit 1
+}
+
+[Console]::Out.Write([string]$fixture.$model)
+
+$vk = "$model.verbose"
+if ($fixture.PSObject.Properties[$vk]) {
+    [Console]::Error.Write([string]$fixture.$vk)
+}
+exit 0
+'@ | Set-Content -LiteralPath $implPath -Encoding UTF8
+
+        $cmdPath = Join-Path $script:binDir 'ollama.cmd'
+@"
+@echo off
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"%~dp0ollama-impl.ps1`" %*
+"@ | Set-Content -LiteralPath $cmdPath -Encoding UTF8
+
+        $script:fixturePath = Join-Path $TestDrive 'fixture.json'
+        @{
+            'test-model' = '<task>x</task><context>y</context><constraints>z</constraints>'
+            'test-model.verbose' = "prompt eval count: 10 token(s)`nprompt eval duration: 50ms`neval count: 20 token(s)`neval duration: 1.5s`neval rate: 13.3 tokens/s`n"
+        } | ConvertTo-Json | Set-Content -LiteralPath $script:fixturePath -Encoding UTF8
+
+        $script:bareFixture = Join-Path $TestDrive 'bare.json'
+        @{ 'bare-model' = '<task>a</task><context>b</context><constraints>c</constraints>' } |
+            ConvertTo-Json | Set-Content -LiteralPath $script:bareFixture -Encoding UTF8
+
+        $script:savedPath = $env:Path
+        $script:savedPathExt = $env:PATHEXT
+        $script:savedFix = $env:CPROMPT_T2_FIXTURE
+        $env:Path = "$script:binDir;$env:Path"
+        # Ensure .cmd is resolvable in this PS child.
+        if ($env:PATHEXT -notmatch '\.CMD') {
+            $env:PATHEXT = '.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;.PS1'
+        }
+    }
+    AfterAll {
+        $env:Path = $script:savedPath
+        if ($null -ne $script:savedPathExt) { $env:PATHEXT = $script:savedPathExt }
+        if ($null -ne $script:savedFix) { $env:CPROMPT_T2_FIXTURE = $script:savedFix } else { Remove-Item Env:\CPROMPT_T2_FIXTURE -ErrorAction SilentlyContinue }
+    }
+
+    It 'without -CaptureStats returns a string (backward compatible)' {
+        $env:CPROMPT_T2_FIXTURE = $script:fixturePath
+        $result = Invoke-OllamaModel -Text 'hello' -Model 'test-model'
+        $result | Should -BeOfType [string]
+        $result | Should -Match '<task>x</task>'
+    }
+
+    It 'with -CaptureStats returns object with .Text and parsed .Stats' {
+        $env:CPROMPT_T2_FIXTURE = $script:fixturePath
+        $result = Invoke-OllamaModel -Text 'hello' -Model 'test-model' -CaptureStats
+        $result.Text                 | Should -Match '<task>x</task>'
+        $result.Stats                | Should -Not -BeNullOrEmpty
+        $result.Stats.evalRate       | Should -Be 13.3
+        $result.Stats.evalCount      | Should -Be 20
+        $result.Stats.evalDurationMs | Should -Be 1500
+    }
+
+    It 'with -CaptureStats and no verbose fixture returns .Stats = $null' {
+        $env:CPROMPT_T2_FIXTURE = $script:bareFixture
+        $result = Invoke-OllamaModel -Text 'hello' -Model 'bare-model' -CaptureStats
+        $result.Text  | Should -Match '<task>a</task>'
+        $result.Stats | Should -BeNullOrEmpty
+    }
+}
+
