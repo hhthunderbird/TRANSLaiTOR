@@ -793,3 +793,60 @@ Describe 'Get-RefinerRegressions' {
     }
 }
 
+Describe 'ConvertFrom-OllamaVerboseStats' {
+    It 'parses full canonical stderr block with mixed units and token(s) suffix' {
+        $stderr = @"
+prompt eval count:    28 token(s)
+prompt eval duration: 40.8138ms
+eval count:           144 token(s)
+eval duration:        4.0391184s
+eval rate:            81.85 tokens/s
+"@
+        $stats = ConvertFrom-OllamaVerboseStats -Text $stderr
+        $stats                          | Should -Not -BeNullOrEmpty
+        $stats.promptEvalCount          | Should -Be 28
+        $stats.promptEvalDurationMs     | Should -Be 41   # 40.8138 -> round to int
+        $stats.evalCount                | Should -Be 144
+        $stats.evalDurationMs           | Should -Be 4039 # 4.0391184s -> 4039 ms
+        $stats.evalRate                 | Should -Be 81.85
+    }
+
+    It 'returns only fields that matched on partial stderr' {
+        $stderr = "eval count: 18 tokens`neval rate: 56.3 tokens/s`n"
+        $stats = ConvertFrom-OllamaVerboseStats -Text $stderr
+        $stats.ContainsKey('evalCount')              | Should -BeTrue
+        $stats.ContainsKey('evalRate')               | Should -BeTrue
+        $stats.ContainsKey('promptEvalCount')        | Should -BeFalse
+        $stats.ContainsKey('promptEvalDurationMs')   | Should -BeFalse
+        $stats.ContainsKey('evalDurationMs')         | Should -BeFalse
+        $stats.evalCount                             | Should -Be 18
+        $stats.evalRate                              | Should -Be 56.3
+    }
+
+    It 'returns $null on empty or unrelated stderr' {
+        ConvertFrom-OllamaVerboseStats -Text ''               | Should -BeNullOrEmpty
+        ConvertFrom-OllamaVerboseStats -Text 'random noise'   | Should -BeNullOrEmpty
+        ConvertFrom-OllamaVerboseStats -Text $null            | Should -BeNullOrEmpty
+    }
+
+    It 'parses after ANSI escapes are stripped (caller responsibility documented)' {
+        $stderr = "`e[?2026h`e[2K`r" + "eval rate: 18.2 tokens/s`n"
+        $clean = Remove-AnsiEscapes -Text $stderr
+        $stats = ConvertFrom-OllamaVerboseStats -Text $clean
+        $stats.evalRate | Should -Be 18.2
+    }
+
+    It 'parses durations: 12.345s -> 12345, 200ms -> 200' {
+        $a = ConvertFrom-OllamaVerboseStats -Text "eval duration: 12.345s`n"
+        $b = ConvertFrom-OllamaVerboseStats -Text "eval duration: 200ms`n"
+        $a.evalDurationMs | Should -Be 12345
+        $b.evalDurationMs | Should -Be 200
+    }
+
+    It 'is case-insensitive and tolerant of whitespace drift' {
+        $stderr = "Eval Rate:   42.0 tokens/s`n"
+        $stats = ConvertFrom-OllamaVerboseStats -Text $stderr
+        $stats.evalRate | Should -Be 42.0
+    }
+}
+

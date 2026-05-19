@@ -21,6 +21,52 @@ function Remove-AnsiEscapes {
     return [regex]::Replace($Text, "`e\[[0-9;]*[A-Za-z]", '')
 }
 
+function ConvertFrom-OllamaVerboseStats {
+    [CmdletBinding()]
+    param([AllowNull()][AllowEmptyString()][string]$Text)
+    if ([string]::IsNullOrWhiteSpace($Text)) { return $null }
+
+    $stats = @{}
+
+    # Duration helper: float + unit -> int ms.
+    $toMs = {
+        param($value, $unit)
+        $n = [double]$value
+        switch ($unit.ToLowerInvariant()) {
+            'ms' { return [int][math]::Round($n) }
+            's'  { return [int][math]::Round($n * 1000.0) }
+            default { return $null }
+        }
+    }
+
+    $opts = [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
+
+    $m = [regex]::Match($Text, 'prompt\s+eval\s+count:\s*(\d+)\s*token', $opts)
+    if ($m.Success) { $stats.promptEvalCount = [int]$m.Groups[1].Value }
+
+    $m = [regex]::Match($Text, 'prompt\s+eval\s+duration:\s*([\d.]+)(ms|s)\b', $opts)
+    if ($m.Success) {
+        $ms = & $toMs $m.Groups[1].Value $m.Groups[2].Value
+        if ($null -ne $ms) { $stats.promptEvalDurationMs = $ms }
+    }
+
+    # The 'eval count' regex must NOT match 'prompt eval count' — anchor on word boundary.
+    $m = [regex]::Match($Text, '(?<!prompt\s)\beval\s+count:\s*(\d+)\s*token', $opts)
+    if ($m.Success) { $stats.evalCount = [int]$m.Groups[1].Value }
+
+    $m = [regex]::Match($Text, '(?<!prompt\s)\beval\s+duration:\s*([\d.]+)(ms|s)\b', $opts)
+    if ($m.Success) {
+        $ms = & $toMs $m.Groups[1].Value $m.Groups[2].Value
+        if ($null -ne $ms) { $stats.evalDurationMs = $ms }
+    }
+
+    $m = [regex]::Match($Text, 'eval\s+rate:\s*([\d.]+)\s*tokens?/s', $opts)
+    if ($m.Success) { $stats.evalRate = [double]$m.Groups[1].Value }
+
+    if ($stats.Count -eq 0) { return $null }
+    return $stats
+}
+
 function Get-PromptXml {
     [CmdletBinding()]
     param([string]$RawOutput)
@@ -425,6 +471,7 @@ function Get-RefinerRegressions {
 Export-ModuleMember -Function `
     Remove-Bom, `
     Remove-AnsiEscapes, `
+    ConvertFrom-OllamaVerboseStats, `
     Get-PromptXml, `
     Test-PromptXml, `
     Resolve-CompilerFallback, `
