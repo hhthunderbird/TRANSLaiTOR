@@ -91,6 +91,8 @@ $metricMode    = 'raw'   # default: refiner not consulted
 $refinerMs     = 0
 $compilerMs    = 0
 $runStart      = [System.Diagnostics.Stopwatch]::StartNew()
+$refinerStats  = $null
+$compilerStats = $null
 $metricsPath   = Join-Path $script:StateRoot 'metrics.jsonl'
 
 # Tri-state cache for ollama PATH lookup: $null = unchecked, $true/$false = result.
@@ -139,7 +141,9 @@ if (-not $skipRefiner) {
         $refinerRaw = ''
         $refinerWatch = [System.Diagnostics.Stopwatch]::StartNew()
         try {
-            $refinerRaw = Invoke-OllamaModel -Text $userInput -Model $RefinerModel
+            $refinerResult = Invoke-OllamaModel -Text $userInput -Model $RefinerModel -CaptureStats
+            $refinerRaw    = [string]$refinerResult.Text
+            $refinerStats  = $refinerResult.Stats
         } catch {
             $refinerRaw = ''
         }
@@ -220,7 +224,9 @@ if (-not $xml) {
     $ollamaOutput = ''
     $compilerWatch = [System.Diagnostics.Stopwatch]::StartNew()
     try {
-        $ollamaOutput = Invoke-OllamaModel -Text $userInput -Model $Model
+        $compilerResult = Invoke-OllamaModel -Text $userInput -Model $Model -CaptureStats
+        $ollamaOutput   = [string]$compilerResult.Text
+        $compilerStats  = $compilerResult.Stats
     } catch {
         $compilerWatch.Stop()
         $ErrorActionPreference = $prevEAP
@@ -281,6 +287,11 @@ try {
             Send     = [bool]$Send
         }
     }
+    # Opt-in eval-stats keys: present only when Invoke-OllamaModel actually
+    # captured non-null stats. Absent on cache hits (compiler skipped) and on
+    # -NoRefine / refiner-bypassed runs.
+    if ($refinerStats)  { $entry.refinerEval  = $refinerStats }
+    if ($compilerStats) { $entry.compilerEval = $compilerStats }
     Add-MetricEntry -Path $metricsPath -Entry $entry
 } catch {
     # Metrics is best-effort. Never break the user-facing run.
