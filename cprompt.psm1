@@ -153,15 +153,21 @@ function Invoke-OllamaModel {
     $cmd = Get-Command 'ollama' -ErrorAction Stop
     $source = $cmd.Source
 
+    # Defensive double-quote escaping for embedding into cmd.exe argument strings.
+    $sourceQuoted = '"' + ($source -replace '"', '""') + '"'
+    $modelQuoted  = '"' + ($Model  -replace '"', '""') + '"'
+
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $isShim = $source -match '\.(cmd|bat)$'
     if ($isShim) {
         # CreateProcess can't exec .cmd directly; route through cmd.exe.
+        # cmd.exe /c strips the first and last quote when >2 quotes are present;
+        # wrap the whole command in an extra outer pair so the inner quotes survive.
         $psi.FileName  = "$env:SystemRoot\System32\cmd.exe"
-        $psi.Arguments = '/c "' + $source + '" run --verbose --nowordwrap ' + $Model
+        $psi.Arguments = '/c "' + $sourceQuoted + ' run --verbose --nowordwrap ' + $modelQuoted + '"'
     } else {
         $psi.FileName  = $source
-        $psi.Arguments = 'run --verbose --nowordwrap ' + $Model
+        $psi.Arguments = 'run --verbose --nowordwrap ' + $modelQuoted
     }
     $psi.UseShellExecute        = $false
     $psi.RedirectStandardInput  = $true
@@ -172,21 +178,24 @@ function Invoke-OllamaModel {
     $psi.StandardErrorEncoding  = [System.Text.Encoding]::UTF8
 
     $p = [System.Diagnostics.Process]::Start($psi)
+    try {
+        # Async stdout/stderr reads avoid deadlock if either stream fills its
+        # pipe buffer before WaitForExit. Stdin is written then closed.
+        $outTask = $p.StandardOutput.ReadToEndAsync()
+        $errTask = $p.StandardError.ReadToEndAsync()
 
-    # Async stdout/stderr reads avoid deadlock if either stream fills its pipe
-    # buffer before WaitForExit. Stdin is written then closed.
-    $outTask = $p.StandardOutput.ReadToEndAsync()
-    $errTask = $p.StandardError.ReadToEndAsync()
+        $p.StandardInput.Write($Text)
+        $p.StandardInput.Close()
 
-    $p.StandardInput.Write($Text)
-    $p.StandardInput.Close()
+        $p.WaitForExit()
+        $stdout = $outTask.GetAwaiter().GetResult()
+        $stderr = $errTask.GetAwaiter().GetResult()
 
-    $p.WaitForExit()
-    $stdout = $outTask.GetAwaiter().GetResult()
-    $stderr = $errTask.GetAwaiter().GetResult()
-
-    # Propagate ollama exit code to $LASTEXITCODE for callers that check it.
-    $global:LASTEXITCODE = $p.ExitCode
+        # Propagate ollama exit code to $LASTEXITCODE for callers that check it.
+        $global:LASTEXITCODE = $p.ExitCode
+    } finally {
+        if ($p) { $p.Dispose() }
+    }
 
     $statsText = Remove-AnsiEscapes -Text $stderr
     $stats = ConvertFrom-OllamaVerboseStats -Text $statsText
