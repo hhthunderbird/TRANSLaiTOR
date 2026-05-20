@@ -943,3 +943,47 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"%~dp0ollama-impl.ps1`"
     }
 }
 
+
+Describe 'Get-MetricsSummary with compilerEval entries' {
+    It 'computes p50, p95 of evalRate and median of evalCount' {
+        # Five entries with hand-pickable percentiles. After sort:
+        # evalRate sorted: 5, 8, 12, 18, 30 -> p50 (ceil(0.5*5)=3) -> 12; p95 (ceil(0.95*5)=5) -> 30
+        # evalCount sorted: 50, 80, 100, 140, 200 -> median (index ceil(0.5*5)-1=2) -> 100
+        $entries = @(
+            [pscustomobject]@{ compilerEval = @{ evalRate = 12.0; evalCount = 100 } },
+            [pscustomobject]@{ compilerEval = @{ evalRate = 5.0;  evalCount = 200 } },
+            [pscustomobject]@{ compilerEval = @{ evalRate = 30.0; evalCount = 50  } },
+            [pscustomobject]@{ compilerEval = @{ evalRate = 8.0;  evalCount = 140 } },
+            [pscustomobject]@{ compilerEval = @{ evalRate = 18.0; evalCount = 80  } }
+        )
+        $s = Get-MetricsSummary -Entries $entries
+        $s.CompilerEvalRateP50      | Should -Be 12.0
+        $s.CompilerEvalRateP95      | Should -Be 30.0
+        $s.CompilerEvalCountMedian  | Should -Be 100
+    }
+
+    It 'returns 0 (or absent semantics: zero) when no entries have compilerEval' {
+        $entries = @(
+            [pscustomobject]@{ totalMs = 100 },
+            [pscustomobject]@{ totalMs = 200 }
+        )
+        $s = Get-MetricsSummary -Entries $entries
+        $s.CompilerEvalRateP50      | Should -Be 0
+        $s.CompilerEvalRateP95      | Should -Be 0
+        $s.CompilerEvalCountMedian  | Should -Be 0
+    }
+
+    It 'tolerates mix of entries with and without compilerEval' {
+        $entries = @(
+            [pscustomobject]@{ compilerEval = @{ evalRate = 10.0; evalCount = 60 } },
+            [pscustomobject]@{ totalMs = 200 },
+            [pscustomobject]@{ compilerEval = @{ evalRate = 20.0; evalCount = 80 } }
+        )
+        $s = Get-MetricsSummary -Entries $entries
+        # Sorted evalRate: 10, 20 -> p50 (ceil(0.5*2)=1) -> 10; p95 (ceil(0.95*2)=2) -> 20
+        $s.CompilerEvalRateP50      | Should -Be 10.0
+        $s.CompilerEvalRateP95      | Should -Be 20.0
+        # Sorted evalCount: 60, 80 -> median (index ceil(0.5*2)-1=0) -> 60
+        $s.CompilerEvalCountMedian  | Should -Be 60
+    }
+}

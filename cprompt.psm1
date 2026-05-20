@@ -323,6 +323,9 @@ function Get-MetricsSummary {
         LatencyP95          = 0
         AvgCompressionRatio = 0.0
         ModeCounts          = @{}
+        CompilerEvalRateP50    = 0
+        CompilerEvalRateP95    = 0
+        CompilerEvalCountMedian = 0
     }
 
     if ($Entries.Count -eq 0) { return [pscustomobject]$summary }
@@ -363,6 +366,33 @@ function Get-MetricsSummary {
         $sum = 0.0
         foreach ($r in $ratios) { $sum += $r }
         $summary.AvgCompressionRatio = [math]::Round($sum / $ratios.Count, 4)
+    }
+
+    # Compiler eval stats — present only on entries that captured them.
+    $getCompilerEval = {
+        param($e)
+        $hasIt = & $hasField $e 'compilerEval'
+        if (-not $hasIt) { return $null }
+        return $e.compilerEval
+    }
+
+    $rates = @($Entries |
+        ForEach-Object { & $getCompilerEval $_ } |
+        Where-Object { $_ -and (& $hasField $_ 'evalRate') } |
+        ForEach-Object { [double]$_.evalRate } |
+        Sort-Object)
+    if ($rates.Count -gt 0) {
+        $summary.CompilerEvalRateP50 = $rates[[math]::Max(0, [math]::Ceiling(0.50 * $rates.Count) - 1)]
+        $summary.CompilerEvalRateP95 = $rates[[math]::Max(0, [math]::Ceiling(0.95 * $rates.Count) - 1)]
+    }
+
+    $counts = @($Entries |
+        ForEach-Object { & $getCompilerEval $_ } |
+        Where-Object { $_ -and (& $hasField $_ 'evalCount') } |
+        ForEach-Object { [int]$_.evalCount } |
+        Sort-Object)
+    if ($counts.Count -gt 0) {
+        $summary.CompilerEvalCountMedian = $counts[[math]::Max(0, [math]::Ceiling(0.50 * $counts.Count) - 1)]
     }
 
     return [pscustomobject]$summary
