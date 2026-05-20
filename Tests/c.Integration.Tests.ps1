@@ -200,3 +200,68 @@ Describe 'c.ps1 zero-signal pre-gate' {
         $metrics.mode | Should -Be 'pregate'
     }
 }
+
+Describe 'c.ps1 eval stats captured in metrics entry' {
+    It 'compiler eval stats land in metrics entry on -NoRefine run' {
+        $r = Invoke-CIntegration `
+            -TestDrive $TestDrive `
+            -RepoRoot $script:repoRoot `
+            -Fixture (Join-Path $script:fixtures 'compiler-valid-xml.json') `
+            -Args @('-NoRefine','-Raw','sistema ecs unity')
+
+        $r.ExitCode | Should -Be 0
+        Test-Path $r.MetricsPath | Should -BeTrue
+
+        $lines = @(Get-Content -LiteralPath $r.MetricsPath | Where-Object { $_ -and $_.Trim() })
+        $entry = $lines[-1] | ConvertFrom-Json
+        $entry.compilerEval                   | Should -Not -BeNullOrEmpty
+        [double]$entry.compilerEval.evalRate  | Should -Be 20.0
+        [int]$entry.compilerEval.evalCount    | Should -Be 120
+        [int]$entry.compilerEval.evalDurationMs | Should -Be 6000
+        # No refiner ran on -NoRefine.
+        $entry.PSObject.Properties['refinerEval'] | Should -BeNullOrEmpty
+    }
+
+    It 'refiner and compiler eval stats both land on passthrough run' {
+        $r = Invoke-CIntegration `
+            -TestDrive $TestDrive `
+            -RepoRoot $script:repoRoot `
+            -Fixture (Join-Path $script:fixtures 'combo-passthrough-valid.json') `
+            -Args @('sistema ecs unity 3d game')
+
+        $r.ExitCode    | Should -Be 0
+        $r.Invocations | Should -Be @('prompt-refiner','prompt-opt')
+
+        $lines = @(Get-Content -LiteralPath $r.MetricsPath | Where-Object { $_ -and $_.Trim() })
+        $entry = $lines[-1] | ConvertFrom-Json
+        $entry.refinerEval                   | Should -Not -BeNullOrEmpty
+        [double]$entry.refinerEval.evalRate  | Should -Be 56.3
+        $entry.compilerEval                  | Should -Not -BeNullOrEmpty
+        [double]$entry.compilerEval.evalRate | Should -Be 20.0
+    }
+
+    It 'no compilerEval on cache-hit second run; refinerEval still present' {
+        $fixture = Join-Path $script:fixtures 'combo-passthrough-valid.json'
+
+        $run1 = Invoke-CIntegration `
+            -TestDrive $TestDrive `
+            -RepoRoot $script:repoRoot `
+            -Fixture $fixture `
+            -Args @('sistema ecs unity 3d game')
+        $run1.ExitCode    | Should -Be 0
+
+        $run2 = Invoke-CIntegration `
+            -TestDrive $TestDrive `
+            -RepoRoot $script:repoRoot `
+            -Fixture $fixture `
+            -Args @('sistema ecs unity 3d game')
+        $run2.Invocations | Should -Be @('prompt-refiner')  # compiler skipped (cache)
+
+        $lines = @(Get-Content -LiteralPath $run2.MetricsPath | Where-Object { $_ -and $_.Trim() })
+        $entry = $lines[-1] | ConvertFrom-Json
+        $entry.mode                           | Should -Be 'cache'
+        $entry.cacheHit                       | Should -BeTrue
+        $entry.PSObject.Properties['compilerEval'] | Should -BeNullOrEmpty
+        $entry.refinerEval                    | Should -Not -BeNullOrEmpty
+    }
+}
