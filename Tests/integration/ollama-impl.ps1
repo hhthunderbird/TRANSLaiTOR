@@ -30,4 +30,13 @@ if (-not $fixture.PSObject.Properties[$model]) {
 }
 
 [Console]::Out.Write([string]$fixture.$model)
+
+# Optional sibling key '<model>.verbose' lets fixtures opt into emitting an
+# Ollama-style --verbose block to stderr. Emit unconditionally when present;
+# Invoke-OllamaModel -CaptureStats is what causes the stderr to be captured.
+$verboseKey = "$model.verbose"
+if ($fixture.PSObject.Properties[$verboseKey]) {
+    [Console]::Error.Write([string]$fixture.$verboseKey)
+}
+
 exit 0

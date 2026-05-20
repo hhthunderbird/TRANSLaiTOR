@@ -1,3 +1,4 @@
 {
-  "prompt-opt": "<task>fixture task body</task>\n<context>fixture context body</context>\n<constraints>fixture constraints body</constraints>"
+  "prompt-opt": "<task>fixture task body</task>\n<context>fixture context body</context>\n<constraints>fixture constraints body</constraints>",
+  "prompt-opt.verbose": "prompt eval count: 50 token(s)\nprompt eval duration: 100ms\neval count: 120 token(s)\neval duration: 6.0s\neval rate: 20.0 tokens/s\n"
 }
