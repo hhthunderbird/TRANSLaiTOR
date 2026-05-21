@@ -27,6 +27,16 @@ Write-Host ("Cache hits   : {0:P1}" -f $summary.CacheHitRate)
 Write-Host ("p50 totalMs  : {0}" -f $summary.LatencyP50)
 Write-Host ("p95 totalMs  : {0}" -f $summary.LatencyP95)
 Write-Host ("Avg xml/input: {0:N2}" -f $summary.AvgCompressionRatio)
+
+# Compiler eval-rate stats — emit only when at least one entry has them. We
+# detect "has data" by checking the median count, which is the only field
+# computed from raw counts (and would be 0 if no entry contributed).
+if ($summary.CompilerEvalCountMedian -gt 0) {
+    Write-Host ("Compiler eval/s p50: {0:N2}" -f $summary.CompilerEvalRateP50)
+    Write-Host ("Compiler eval/s p95: {0:N2}" -f $summary.CompilerEvalRateP95)
+    Write-Host ("Compiler tokens out (median): {0}" -f $summary.CompilerEvalCountMedian)
+}
+
 Write-Host ''
 Write-Host 'Mode counts:'
 foreach ($mode in ($summary.ModeCounts.Keys | Sort-Object)) {

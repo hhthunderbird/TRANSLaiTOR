@@ -793,3 +793,197 @@ Describe 'Get-RefinerRegressions' {
     }
 }
 
+Describe 'ConvertFrom-OllamaVerboseStats' {
+    It 'parses full canonical stderr block with mixed units and token(s) suffix' {
+        $stderr = @"
+prompt eval count:    28 token(s)
+prompt eval duration: 40.8138ms
+eval count:           144 token(s)
+eval duration:        4.0391184s
+eval rate:            81.85 tokens/s
+"@
+        $stats = ConvertFrom-OllamaVerboseStats -Text $stderr
+        $stats                          | Should -Not -BeNullOrEmpty
+        $stats.promptEvalCount          | Should -Be 28
+        $stats.promptEvalDurationMs     | Should -Be 41   # 40.8138 -> round to int
+        $stats.evalCount                | Should -Be 144
+        $stats.evalDurationMs           | Should -Be 4039 # 4.0391184s -> 4039 ms
+        $stats.evalRate                 | Should -Be 81.85
+    }
+
+    It 'returns only fields that matched on partial stderr' {
+        $stderr = "eval count: 18 tokens`neval rate: 56.3 tokens/s`n"
+        $stats = ConvertFrom-OllamaVerboseStats -Text $stderr
+        $stats.ContainsKey('evalCount')              | Should -BeTrue
+        $stats.ContainsKey('evalRate')               | Should -BeTrue
+        $stats.ContainsKey('promptEvalCount')        | Should -BeFalse
+        $stats.ContainsKey('promptEvalDurationMs')   | Should -BeFalse
+        $stats.ContainsKey('evalDurationMs')         | Should -BeFalse
+        $stats.evalCount                             | Should -Be 18
+        $stats.evalRate                              | Should -Be 56.3
+    }
+
+    It 'returns $null on empty or unrelated stderr' {
+        ConvertFrom-OllamaVerboseStats -Text ''               | Should -BeNullOrEmpty
+        ConvertFrom-OllamaVerboseStats -Text 'random noise'   | Should -BeNullOrEmpty
+        ConvertFrom-OllamaVerboseStats -Text $null            | Should -BeNullOrEmpty
+    }
+
+    It 'parses after ANSI escapes are stripped (caller responsibility documented)' {
+        $stderr = "`e[?2026h`e[2K`r" + "eval rate: 18.2 tokens/s`n"
+        $clean = Remove-AnsiEscapes -Text $stderr
+        $stats = ConvertFrom-OllamaVerboseStats -Text $clean
+        $stats.evalRate | Should -Be 18.2
+    }
+
+    It 'parses durations: 12.345s -> 12345, 200ms -> 200' {
+        $a = ConvertFrom-OllamaVerboseStats -Text "eval duration: 12.345s`n"
+        $b = ConvertFrom-OllamaVerboseStats -Text "eval duration: 200ms`n"
+        $a.evalDurationMs | Should -Be 12345
+        $b.evalDurationMs | Should -Be 200
+    }
+
+    It 'is case-insensitive and tolerant of whitespace drift' {
+        $stderr = "Eval Rate:   42.0 tokens/s`n"
+        $stats = ConvertFrom-OllamaVerboseStats -Text $stderr
+        $stats.evalRate | Should -Be 42.0
+    }
+}
+
+Describe 'Invoke-OllamaModel -CaptureStats' -Tag 'integration' {
+    BeforeAll {
+        # Stand up a self-contained PATH-shim ollama for this Describe. We do
+        # NOT depend on Tests/integration/ollama-impl.ps1 (Task 3 owns that).
+        $script:binDir = Join-Path $TestDrive 'ol-bin'
+        New-Item -ItemType Directory -Path $script:binDir -Force | Out-Null
+
+        $implPath = Join-Path $script:binDir 'ollama-impl.ps1'
+@'
+[Console]::In.ReadToEnd() | Out-Null
+
+# Last non-flag, non-"run" arg is the model.
+$filtered = @($args | Where-Object { $_ -ne 'run' -and $_ -notlike '--*' })
+$model = $filtered[-1]
+
+if (-not $env:CPROMPT_T2_FIXTURE) {
+    [Console]::Error.WriteLine("t2-stub: CPROMPT_T2_FIXTURE not set")
+    exit 1
+}
+$raw = Get-Content -LiteralPath $env:CPROMPT_T2_FIXTURE -Raw -Encoding UTF8
+$raw = $raw.TrimStart([char]0xFEFF)
+$fixture = $raw | ConvertFrom-Json
+
+if (-not $fixture.PSObject.Properties[$model]) {
+    [Console]::Error.WriteLine("t2-stub: model '$model' not in fixture")
+    exit 1
+}
+
+[Console]::Out.Write([string]$fixture.$model)
+
+$vk = "$model.verbose"
+if ($fixture.PSObject.Properties[$vk]) {
+    [Console]::Error.Write([string]$fixture.$vk)
+}
+exit 0
+'@ | Set-Content -LiteralPath $implPath -Encoding UTF8
+
+        $cmdPath = Join-Path $script:binDir 'ollama.cmd'
+@"
+@echo off
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"%~dp0ollama-impl.ps1`" %*
+"@ | Set-Content -LiteralPath $cmdPath -Encoding UTF8
+
+        $script:fixturePath = Join-Path $TestDrive 'fixture.json'
+        @{
+            'test-model' = '<task>x</task><context>y</context><constraints>z</constraints>'
+            'test-model.verbose' = "prompt eval count: 10 token(s)`nprompt eval duration: 50ms`neval count: 20 token(s)`neval duration: 1.5s`neval rate: 13.3 tokens/s`n"
+        } | ConvertTo-Json | Set-Content -LiteralPath $script:fixturePath -Encoding UTF8
+
+        $script:bareFixture = Join-Path $TestDrive 'bare.json'
+        @{ 'bare-model' = '<task>a</task><context>b</context><constraints>c</constraints>' } |
+            ConvertTo-Json | Set-Content -LiteralPath $script:bareFixture -Encoding UTF8
+
+        $script:savedPath = $env:Path
+        $script:savedPathExt = $env:PATHEXT
+        $script:savedFix = $env:CPROMPT_T2_FIXTURE
+        $env:Path = "$script:binDir;$env:Path"
+        # Ensure .cmd is resolvable in this PS child.
+        if ($env:PATHEXT -notmatch '\.CMD') {
+            $env:PATHEXT = '.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;.PS1'
+        }
+    }
+    AfterAll {
+        $env:Path = $script:savedPath
+        if ($null -ne $script:savedPathExt) { $env:PATHEXT = $script:savedPathExt }
+        if ($null -ne $script:savedFix) { $env:CPROMPT_T2_FIXTURE = $script:savedFix } else { Remove-Item Env:\CPROMPT_T2_FIXTURE -ErrorAction SilentlyContinue }
+    }
+
+    It 'without -CaptureStats returns a string (backward compatible)' {
+        $env:CPROMPT_T2_FIXTURE = $script:fixturePath
+        $result = Invoke-OllamaModel -Text 'hello' -Model 'test-model'
+        $result | Should -BeOfType [string]
+        $result | Should -Match '<task>x</task>'
+    }
+
+    It 'with -CaptureStats returns object with .Text and parsed .Stats' {
+        $env:CPROMPT_T2_FIXTURE = $script:fixturePath
+        $result = Invoke-OllamaModel -Text 'hello' -Model 'test-model' -CaptureStats
+        $result.Text                 | Should -Match '<task>x</task>'
+        $result.Stats                | Should -Not -BeNullOrEmpty
+        $result.Stats.evalRate       | Should -Be 13.3
+        $result.Stats.evalCount      | Should -Be 20
+        $result.Stats.evalDurationMs | Should -Be 1500
+    }
+
+    It 'with -CaptureStats and no verbose fixture returns .Stats = $null' {
+        $env:CPROMPT_T2_FIXTURE = $script:bareFixture
+        $result = Invoke-OllamaModel -Text 'hello' -Model 'bare-model' -CaptureStats
+        $result.Text  | Should -Match '<task>a</task>'
+        $result.Stats | Should -BeNullOrEmpty
+    }
+}
+
+
+Describe 'Get-MetricsSummary with compilerEval entries' {
+    It 'computes p50, p95 of evalRate and median of evalCount' {
+        # Five entries with hand-pickable percentiles. After sort:
+        # evalRate sorted: 5, 8, 12, 18, 30 -> p50 (ceil(0.5*5)=3) -> 12; p95 (ceil(0.95*5)=5) -> 30
+        # evalCount sorted: 50, 80, 100, 140, 200 -> median (index ceil(0.5*5)-1=2) -> 100
+        $entries = @(
+            [pscustomobject]@{ compilerEval = @{ evalRate = 12.0; evalCount = 100 } },
+            [pscustomobject]@{ compilerEval = @{ evalRate = 5.0;  evalCount = 200 } },
+            [pscustomobject]@{ compilerEval = @{ evalRate = 30.0; evalCount = 50  } },
+            [pscustomobject]@{ compilerEval = @{ evalRate = 8.0;  evalCount = 140 } },
+            [pscustomobject]@{ compilerEval = @{ evalRate = 18.0; evalCount = 80  } }
+        )
+        $s = Get-MetricsSummary -Entries $entries
+        $s.CompilerEvalRateP50      | Should -Be 12.0
+        $s.CompilerEvalRateP95      | Should -Be 30.0
+        $s.CompilerEvalCountMedian  | Should -Be 100
+    }
+
+    It 'returns 0 (or absent semantics: zero) when no entries have compilerEval' {
+        $entries = @(
+            [pscustomobject]@{ totalMs = 100 },
+            [pscustomobject]@{ totalMs = 200 }
+        )
+        $s = Get-MetricsSummary -Entries $entries
+        $s.CompilerEvalRateP50      | Should -Be 0
+        $s.CompilerEvalRateP95      | Should -Be 0
+        $s.CompilerEvalCountMedian  | Should -Be 0
+    }
+
+    It 'tolerates mix of entries with and without compilerEval' {
+        $entries = @(
+            [pscustomobject]@{ compilerEval = @{ evalRate = 10.0; evalCount = 60 } },
+            [pscustomobject]@{ totalMs = 200 },
+            [pscustomobject]@{ compilerEval = @{ evalRate = 20.0; evalCount = 80 } }
+        )
+        $s = Get-MetricsSummary -Entries $entries
+        # Sorted evalRate: 10, 20 -> p50 (ceil(0.5*2)=1) -> 10; p95 (ceil(0.95*2)=2) -> 20
+        $s.CompilerEvalRateP50      | Should -Be 10.0
+        $s.CompilerEvalRateP95      | Should -Be 20.0
+        # Sorted evalCount: 60, 80 -> median (index ceil(0.5*2)-1=0) -> 60
+        $s.CompilerEvalCountMedian  | Should -Be 60
+    }
+}
