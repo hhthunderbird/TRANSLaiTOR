@@ -509,6 +509,42 @@ function Test-InputIsMetaQuery {
     return [bool]($Text -match $pattern)
 }
 
+function Format-MetaQueryXml {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Question,
+        [Parameter(Mandatory)][hashtable]$Context
+    )
+    $parts = @()
+    if ($Context.Branch) { $parts += "Branch: $($Context.Branch)" }
+    if ($Context.Status) {
+        $statusLines = @(($Context.Status -split "`n") | Where-Object { $_.Trim() })
+        $parts += "Modified: $($statusLines.Count) file(s)"
+        $parts += "Files: $($Context.Status.Trim())"
+    }
+    if ($Context.Log) {
+        $logLines = @(($Context.Log -split "`n") | Where-Object { $_.Trim() })
+        $parts += "Recent: $($logLines -join ' | ')"
+    }
+    if ($Context.Todos) {
+        $todoLines = @(($Context.Todos -split "`n") | Where-Object { $_.Trim() })
+        $parts += "TODOs: $($todoLines.Count) item(s) -- $($Context.Todos.Trim())"
+    }
+    $pfKeys = @()
+    if ($Context.ProjectFiles -and $Context.ProjectFiles.Count -gt 0) {
+        foreach ($k in $Context.ProjectFiles.Keys) { $pfKeys += $k }
+        $parts += "Project files: $($pfKeys -join ', ')"
+    }
+
+    $contextBody = $parts -join ' | '
+    if (-not $contextBody) { $contextBody = 'No project context available' }
+
+    $task = 'Responder consulta de status do projeto'
+    $constraints = "Responder a pergunta do usuario: $Question | Listar trabalho pendente, estado atual do repositorio, proximos passos"
+
+    return "<task>$task</task><context>$contextBody</context><constraints>$constraints</constraints>"
+}
+
 function Get-RefinerOutput {
     [CmdletBinding()]
     param([string]$RawOutput)
@@ -661,6 +697,7 @@ Export-ModuleMember -Function `
     Test-InputAcceptable, `
     Test-InputIsZeroSignal, `
     Test-InputIsMetaQuery, `
+    Format-MetaQueryXml, `
     Get-CacheKey, `
     Get-CachedXml, `
     Set-CachedXml, `
