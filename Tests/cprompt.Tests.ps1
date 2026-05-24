@@ -1129,3 +1129,44 @@ Describe 'Get-MetricsSummary Claude usage aggregation' {
         $s.ClaudeAvgOutputTokens | Should -Be 40
     }
 }
+
+Describe 'ConvertTo-SinceDate' {
+    It 'parses relative durations: 7d, 24h, 1w' {
+        $now = [datetime]::Now
+        $d7 = ConvertTo-SinceDate '7d'
+        [math]::Abs(($d7 - $now.AddDays(-7)).TotalSeconds) | Should -BeLessThan 2
+
+        $h24 = ConvertTo-SinceDate '24h'
+        [math]::Abs(($h24 - $now.AddHours(-24)).TotalSeconds) | Should -BeLessThan 2
+
+        $w1 = ConvertTo-SinceDate '1w'
+        [math]::Abs(($w1 - $now.AddDays(-7)).TotalSeconds) | Should -BeLessThan 2
+    }
+
+    It 'is case-insensitive on the unit suffix' {
+        $now = [datetime]::Now
+        $upper = ConvertTo-SinceDate '7D'
+        [math]::Abs(($upper - $now.AddDays(-7)).TotalSeconds) | Should -BeLessThan 2
+    }
+
+    It 'parses absolute ISO-8601 date and datetime' {
+        $dateOnly = ConvertTo-SinceDate '2026-05-01'
+        $dateOnly.Year  | Should -Be 2026
+        $dateOnly.Month | Should -Be 5
+        $dateOnly.Day   | Should -Be 1
+
+        $dateTime = ConvertTo-SinceDate '2026-05-01T14:00:00'
+        $dateTime.Hour | Should -Be 14
+    }
+
+    It 'returns $null on invalid input' {
+        $result = ConvertTo-SinceDate 'garbage' -ErrorAction SilentlyContinue
+        $result | Should -BeNullOrEmpty
+    }
+
+    It 'trims whitespace from input' {
+        $now = [datetime]::Now
+        $result = ConvertTo-SinceDate '  7d  '
+        [math]::Abs(($result - $now.AddDays(-7)).TotalSeconds) | Should -BeLessThan 2
+    }
+}
