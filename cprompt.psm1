@@ -63,6 +63,18 @@ function ConvertFrom-OllamaVerboseStats {
     $m = [regex]::Match($Text, 'eval\s+rate:\s*([\d.]+)\s*tokens?/s', $opts)
     if ($m.Success) { $stats.evalRate = [double]$m.Groups[1].Value }
 
+    $m = [regex]::Match($Text, 'load\s+duration:\s*([\d.]+)(ms|s)\b', $opts)
+    if ($m.Success) {
+        $ms = & $toMs $m.Groups[1].Value $m.Groups[2].Value
+        if ($null -ne $ms) { $stats.loadDurationMs = $ms }
+    }
+
+    $m = [regex]::Match($Text, 'total\s+duration:\s*([\d.]+)(ms|s)\b', $opts)
+    if ($m.Success) {
+        $ms = & $toMs $m.Groups[1].Value $m.Groups[2].Value
+        if ($null -ne $ms) { $stats.totalDurationMs = $ms }
+    }
+
     if ($stats.Count -eq 0) { return $null }
     return $stats
 }
