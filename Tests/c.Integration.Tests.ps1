@@ -237,6 +237,7 @@ Describe 'c.ps1 zero-signal pre-gate' {
         $histLine = Get-Content -LiteralPath $r.HistoryPath | Where-Object { $_.Trim() } | Select-Object -Last 1
         $hist = $histLine | ConvertFrom-Json
         $hist.input | Should -Match 'postgres'
+        $hist.input | Should -Not -Match 'Q:'
         $hist.refined | Should -BeTrue
 
         $metricsLine = Get-Content -LiteralPath $r.MetricsPath | Where-Object { $_.Trim() } | Select-Object -Last 1
