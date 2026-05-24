@@ -700,6 +700,91 @@ Describe 'Test-InputIsZeroSignal' {
     }
 }
 
+Describe 'Test-InputIsMetaQuery' {
+    # True positives — meta/status queries with WH-word + state marker
+    It 'detects PT-BR status query with agora' {
+        (Test-InputIsMetaQuery -Text 'o que temos para fazer agora?') | Should -Be $true
+    }
+
+    It 'detects EN query with left' {
+        (Test-InputIsMetaQuery -Text "what's left to do?") | Should -Be $true
+    }
+
+    It 'detects PT-BR query with falta' {
+        (Test-InputIsMetaQuery -Text 'o que falta?') | Should -Be $true
+    }
+
+    It 'detects PT-BR query with proximo (no accent)' {
+        (Test-InputIsMetaQuery -Text 'qual o proximo passo?') | Should -Be $true
+    }
+
+    It 'detects PT-BR query with próximo (accented)' {
+        (Test-InputIsMetaQuery -Text 'qual o próximo passo?') | Should -Be $true
+    }
+
+    It 'detects EN query with now' {
+        (Test-InputIsMetaQuery -Text 'where are we now?') | Should -Be $true
+    }
+
+    It 'detects EN query with current status' {
+        (Test-InputIsMetaQuery -Text 'what is the current status?') | Should -Be $true
+    }
+
+    It 'detects EN query with remaining' {
+        (Test-InputIsMetaQuery -Text 'what work is remaining?') | Should -Be $true
+    }
+
+    It 'detects PT-BR query with pendente' {
+        (Test-InputIsMetaQuery -Text 'o que esta pendente?') | Should -Be $true
+    }
+
+    # True negatives — coding questions (WH-word but no state marker)
+    It 'rejects coding question about cache in Go' {
+        (Test-InputIsMetaQuery -Text 'como faco cache LRU em Go?') | Should -Be $false
+    }
+
+    It 'rejects EN coding question about error handling' {
+        (Test-InputIsMetaQuery -Text "what's the best way to handle errors?") | Should -Be $false
+    }
+
+    It 'rejects EN coding question about REST endpoint' {
+        (Test-InputIsMetaQuery -Text 'how do I create a REST endpoint?') | Should -Be $false
+    }
+
+    It 'rejects PT-BR coding question about testing lib' {
+        (Test-InputIsMetaQuery -Text 'qual a melhor lib para testes?') | Should -Be $false
+    }
+
+    It 'rejects EN coding question about slow query' {
+        (Test-InputIsMetaQuery -Text 'why is this query slow?') | Should -Be $false
+    }
+
+    # Edge cases
+    It 'returns $false for null' {
+        (Test-InputIsMetaQuery -Text $null) | Should -Be $false
+    }
+
+    It 'returns $false for empty string' {
+        (Test-InputIsMetaQuery -Text '') | Should -Be $false
+    }
+
+    It 'returns $false for whitespace' {
+        (Test-InputIsMetaQuery -Text '   ') | Should -Be $false
+    }
+
+    It 'returns $false when no question mark at end' {
+        (Test-InputIsMetaQuery -Text 'o que temos para fazer agora') | Should -Be $false
+    }
+
+    It 'returns $false for state marker without WH-word' {
+        (Test-InputIsMetaQuery -Text 'mostra o status agora?') | Should -Be $false
+    }
+
+    It 'is case insensitive' {
+        (Test-InputIsMetaQuery -Text 'O QUE FALTA?') | Should -Be $true
+    }
+}
+
 Describe 'Get-RefinerRegressions' {
     BeforeAll {
         function _baseCase {
