@@ -292,7 +292,9 @@ try {
     # -NoRefine / refiner-bypassed runs.
     if ($refinerStats)  { $entry.refinerEval  = $refinerStats }
     if ($compilerStats) { $entry.compilerEval = $compilerStats }
-    Add-MetricEntry -Path $metricsPath -Entry $entry
+    if (-not $Send) {
+        Add-MetricEntry -Path $metricsPath -Entry $entry
+    }
 } catch {
     # Metrics is best-effort. Never break the user-facing run.
 }
@@ -308,12 +310,38 @@ if ($Send) {
     if (-not (Test-CommandPresent -Name 'claude')) {
         Write-Host "ERRO: 'claude' CLI nao encontrado no PATH. XML copiado para clipboard como fallback." -ForegroundColor Red
         $xml | Set-Clipboard
+        if ($null -ne $entry) {
+            try { Add-MetricEntry -Path $metricsPath -Entry $entry } catch {}
+        }
         exit 8
     }
     Write-Host "--- enviando para claude CLI ---" -ForegroundColor Cyan
-    # `claude` defaults to interactive. `-p`/`--print` reads stdin and exits.
-    $xml | & claude -p
-    exit $LASTEXITCODE
+    $claudeRaw  = $xml | & claude -p --output-format json
+    $claudeExit = $LASTEXITCODE
+    $claudeUsage = $null
+    try {
+        $claudeObj  = $claudeRaw | ConvertFrom-Json
+        $claudeText = $claudeObj.result
+        $claudeUsage = @{
+            inputTokens         = [int]$claudeObj.usage.input_tokens
+            outputTokens        = [int]$claudeObj.usage.output_tokens
+            cacheReadTokens     = [int]$claudeObj.usage.cache_read_input_tokens
+            cacheCreationTokens = [int]$claudeObj.usage.cache_creation_input_tokens
+            costUsd             = [double]$claudeObj.total_cost_usd
+            durationMs          = [int]$claudeObj.duration_ms
+            model               = @($claudeObj.modelUsage.PSObject.Properties)[0].Name
+        }
+    } catch {
+        $claudeText  = $claudeRaw
+        $claudeUsage = $null
+        Write-Warning "Could not parse Claude JSON output; token usage not captured."
+    }
+    if ($null -ne $entry) {
+        if ($claudeUsage) { $entry.claudeUsage = $claudeUsage }
+        try { Add-MetricEntry -Path $metricsPath -Entry $entry } catch {}
+    }
+    Write-Output $claudeText
+    exit $claudeExit
 } else {
     $xml | Set-Clipboard
     Write-Host "copiado p/ clipboard (Ctrl+V). use -Send p/ pipe direto no claude." -ForegroundColor Green
