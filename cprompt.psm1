@@ -340,6 +340,11 @@ function Get-MetricsSummary {
         CompilerEvalCountMedian = 0
         ColdStartCount         = 0
         ColdStartRate          = 0.0
+        ClaudeSendCount        = 0
+        ClaudeCostTotal        = 0.0
+        ClaudeCostAvg          = 0.0
+        ClaudeAvgInputTokens   = 0
+        ClaudeAvgOutputTokens  = 0
     }
 
     if ($Entries.Count -eq 0) { return [pscustomobject]$summary }
@@ -426,6 +431,24 @@ function Get-MetricsSummary {
     $summary.ColdStartCount = $coldCount
     if ($Entries.Count -gt 0) {
         $summary.ColdStartRate = [math]::Round($coldCount / $Entries.Count, 4)
+    }
+
+    $claudeEntries = @($Entries | Where-Object { & $hasField $_ 'claudeUsage' })
+    if ($claudeEntries.Count -gt 0) {
+        $summary.ClaudeSendCount = $claudeEntries.Count
+        $costSum   = 0.0
+        $inputSum  = 0
+        $outputSum = 0
+        foreach ($ce in $claudeEntries) {
+            $cu = $ce.claudeUsage
+            if (& $hasField $cu 'costUsd')      { $costSum   += [double]$cu.costUsd }
+            if (& $hasField $cu 'inputTokens')   { $inputSum  += [int]$cu.inputTokens }
+            if (& $hasField $cu 'outputTokens')  { $outputSum += [int]$cu.outputTokens }
+        }
+        $summary.ClaudeCostTotal       = [math]::Round($costSum, 6)
+        $summary.ClaudeCostAvg         = [math]::Round($costSum / $claudeEntries.Count, 6)
+        $summary.ClaudeAvgInputTokens  = [int][math]::Round($inputSum / $claudeEntries.Count)
+        $summary.ClaudeAvgOutputTokens = [int][math]::Round($outputSum / $claudeEntries.Count)
     }
 
     return [pscustomobject]$summary

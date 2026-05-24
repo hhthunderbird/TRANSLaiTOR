@@ -176,6 +176,50 @@ Describe 'c.ps1 -Send' {
         $r.ExitCode    | Should -Be 0
         $r.Invocations | Should -Contain 'claude'
     }
+
+    It 'captures claudeUsage in metrics entry when claude returns JSON' {
+        $r = Invoke-CIntegration `
+            -TestDrive $TestDrive `
+            -RepoRoot $script:repoRoot `
+            -Fixture (Join-Path $script:fixtures 'compiler-valid-xml.json') `
+            -Args @('-Send','-NoRefine','sistema ecs unity') `
+            -Stubs @('ollama','claude')
+
+        $r.ExitCode | Should -Be 0
+
+        $lines = @(Get-Content -LiteralPath $r.MetricsPath | Where-Object { $_ -and $_.Trim() })
+        $entry = $lines[-1] | ConvertFrom-Json
+        $entry.claudeUsage                        | Should -Not -BeNullOrEmpty
+        [int]$entry.claudeUsage.inputTokens       | Should -Be 10
+        [int]$entry.claudeUsage.outputTokens      | Should -Be 5
+        [int]$entry.claudeUsage.cacheReadTokens   | Should -Be 3
+        [int]$entry.claudeUsage.cacheCreationTokens | Should -Be 2
+        [double]$entry.claudeUsage.costUsd        | Should -Be 0.001
+        [int]$entry.claudeUsage.durationMs        | Should -Be 1500
+        $entry.claudeUsage.model                  | Should -Be 'claude-sonnet-4-6'
+    }
+
+    It 'writes metrics without claudeUsage when claude returns non-JSON' {
+        $savedBadJson = $env:CPROMPT_TEST_CLAUDE_BAD_JSON
+        try {
+            $env:CPROMPT_TEST_CLAUDE_BAD_JSON = '1'
+            $r = Invoke-CIntegration `
+                -TestDrive $TestDrive `
+                -RepoRoot $script:repoRoot `
+                -Fixture (Join-Path $script:fixtures 'compiler-valid-xml.json') `
+                -Args @('-Send','-NoRefine','sistema ecs unity') `
+                -Stubs @('ollama','claude')
+        } finally {
+            if ($null -ne $savedBadJson) { $env:CPROMPT_TEST_CLAUDE_BAD_JSON = $savedBadJson }
+            else { Remove-Item Env:\CPROMPT_TEST_CLAUDE_BAD_JSON -ErrorAction SilentlyContinue }
+        }
+
+        $r.ExitCode | Should -Be 0
+
+        $lines = @(Get-Content -LiteralPath $r.MetricsPath | Where-Object { $_ -and $_.Trim() })
+        $entry = $lines[-1] | ConvertFrom-Json
+        $entry.PSObject.Properties['claudeUsage'] | Should -BeNullOrEmpty
+    }
 }
 
 Describe 'c.ps1 zero-signal pre-gate' {
