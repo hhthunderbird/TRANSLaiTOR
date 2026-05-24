@@ -338,6 +338,8 @@ function Get-MetricsSummary {
         CompilerEvalRateP50    = 0
         CompilerEvalRateP95    = 0
         CompilerEvalCountMedian = 0
+        ColdStartCount         = 0
+        ColdStartRate          = 0.0
     }
 
     if ($Entries.Count -eq 0) { return [pscustomobject]$summary }
@@ -405,6 +407,25 @@ function Get-MetricsSummary {
         Sort-Object)
     if ($counts.Count -gt 0) {
         $summary.CompilerEvalCountMedian = $counts[[math]::Max(0, [math]::Ceiling(0.50 * $counts.Count) - 1)]
+    }
+
+    $coldCount = 0
+    foreach ($e in $Entries) {
+        $isCold = $false
+        foreach ($evalKey in @('compilerEval', 'refinerEval')) {
+            if (& $hasField $e $evalKey) {
+                $evalObj = $e.$evalKey
+                if ((& $hasField $evalObj 'loadDurationMs') -and [int]$evalObj.loadDurationMs -gt 500) {
+                    $isCold = $true
+                    break
+                }
+            }
+        }
+        if ($isCold) { $coldCount++ }
+    }
+    $summary.ColdStartCount = $coldCount
+    if ($Entries.Count -gt 0) {
+        $summary.ColdStartRate = [math]::Round($coldCount / $Entries.Count, 4)
     }
 
     return [pscustomobject]$summary
