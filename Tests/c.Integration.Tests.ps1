@@ -218,6 +218,8 @@ Describe 'c.ps1 eval stats captured in metrics entry' {
         [double]$entry.compilerEval.evalRate  | Should -Be 20.0
         [int]$entry.compilerEval.evalCount    | Should -Be 120
         [int]$entry.compilerEval.evalDurationMs | Should -Be 6000
+        [int]$entry.compilerEval.loadDurationMs  | Should -Be 23     # warm: 23.1902ms
+        [int]$entry.compilerEval.totalDurationMs  | Should -Be 6500   # 6.5s
         # No refiner ran on -NoRefine.
         $entry.PSObject.Properties['refinerEval'] | Should -BeNullOrEmpty
     }
@@ -238,6 +240,10 @@ Describe 'c.ps1 eval stats captured in metrics entry' {
         [double]$entry.refinerEval.evalRate  | Should -Be 56.3
         $entry.compilerEval                  | Should -Not -BeNullOrEmpty
         [double]$entry.compilerEval.evalRate | Should -Be 20.0
+        [int]$entry.refinerEval.loadDurationMs   | Should -Be 15     # warm: 15.0ms
+        [int]$entry.refinerEval.totalDurationMs   | Should -Be 1200   # 1.2s
+        [int]$entry.compilerEval.loadDurationMs  | Should -Be 2822   # cold: 2.8218176s
+        [int]$entry.compilerEval.totalDurationMs  | Should -Be 9300   # 9.3s
     }
 
     It 'no compilerEval on cache-hit second run; refinerEval still present' {
