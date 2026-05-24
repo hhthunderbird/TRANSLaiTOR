@@ -1340,6 +1340,112 @@ Describe 'Format-MetaQueryXml' {
     }
 }
 
+Describe 'Get-ProjectContext' {
+    BeforeAll {
+        $script:testDir = Join-Path $TestDrive 'fake-repo'
+        New-Item -ItemType Directory -Path $script:testDir -Force | Out-Null
+    }
+
+    It 'returns hashtable with expected keys' {
+        Mock git {
+            param()
+            $allArgs = $args -join ' '
+            if ($allArgs -match 'status') { return 'M  file.ps1' }
+            if ($allArgs -match 'branch') { return 'main' }
+            if ($allArgs -match 'log')    { return 'abc1234 test commit' }
+            if ($allArgs -match 'diff --name-only') { return 'file.ps1' }
+            return ''
+        }
+        Mock Select-String { return $null }
+
+        $result = Get-ProjectContext -Path $script:testDir
+        $result           | Should -Not -BeNullOrEmpty
+        $result.Branch    | Should -Be 'main'
+        $result.Status    | Should -Match 'file.ps1'
+        $result.Log       | Should -Match 'abc1234'
+        $result.Keys      | Should -Contain 'ElapsedMs'
+        $result.Keys      | Should -Contain 'Todos'
+        $result.Keys      | Should -Contain 'ProjectFiles'
+    }
+
+    It 'fires progress callback for each step' {
+        Mock git { return '' }
+        Mock Select-String { return $null }
+
+        $msgs = @()
+        $result = Get-ProjectContext -Path $script:testDir -OnProgress { $msgs += $args[0] }
+        $msgs.Count | Should -BeGreaterOrEqual 3
+        $msgs[0] | Should -Match '\[1/4\]'
+        $msgs[1] | Should -Match '\[2/4\]'
+    }
+
+    It 'caps TODO output at 30 lines' {
+        Mock git {
+            param()
+            $allArgs = $args -join ' '
+            if ($allArgs -match 'diff --name-only') { return 'file.ps1' }
+            return ''
+        }
+        Mock Select-String {
+            $lines = (1..50 | ForEach-Object {
+                [pscustomobject]@{ Line = "file.ps1:$_`: # TODO item $_" }
+            })
+            return $lines
+        }
+
+        $result = Get-ProjectContext -Path $script:testDir
+        if ($result.Todos) {
+            $todoLines = @(($result.Todos -split "`n") | Where-Object { $_.Trim() })
+            $todoLines.Count | Should -BeLessOrEqual 30
+        }
+    }
+
+    It 'caps project file content at 2000 chars' {
+        $longContent = 'x' * 5000
+        Mock git { return '' }
+        Mock Select-String { return $null }
+
+        $claudeMd = Join-Path $script:testDir 'CLAUDE.md'
+        Set-Content -LiteralPath $claudeMd -Value $longContent -Encoding UTF8
+
+        $result = Get-ProjectContext -Path $script:testDir
+        if ($result.ProjectFiles -and $result.ProjectFiles['CLAUDE.md']) {
+            $result.ProjectFiles['CLAUDE.md'].Length | Should -BeLessOrEqual 2000
+        }
+
+        Remove-Item -LiteralPath $claudeMd -Force -ErrorAction SilentlyContinue
+    }
+
+    It 'skips TODO step when BudgetMs is exceeded' {
+        Mock git {
+            param()
+            Start-Sleep -Milliseconds 50
+            return ''
+        }
+        Mock Select-String { return $null }
+
+        $result = Get-ProjectContext -Path $script:testDir -BudgetMs 1
+        $result.Todos | Should -BeNullOrEmpty
+    }
+
+    It 'reads CLAUDE.md and README.md when present' {
+        Mock git { return '' }
+        Mock Select-String { return $null }
+
+        $claudeMd = Join-Path $script:testDir 'CLAUDE.md'
+        $readmeMd = Join-Path $script:testDir 'README.md'
+        Set-Content -LiteralPath $claudeMd -Value 'claude content' -Encoding UTF8
+        Set-Content -LiteralPath $readmeMd -Value 'readme content' -Encoding UTF8
+
+        $result = Get-ProjectContext -Path $script:testDir
+        $result.ProjectFiles['CLAUDE.md'] | Should -Match 'claude content'
+        $result.ProjectFiles['README.md'] | Should -Match 'readme content'
+
+        Remove-Item -LiteralPath $claudeMd -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $readmeMd -Force -ErrorAction SilentlyContinue
+    }
+}
+
 Describe 'ConvertTo-SinceDate' {
     It 'parses relative durations: 7d, 24h, 1w' {
         $now = [datetime]::Now
