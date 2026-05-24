@@ -848,6 +848,43 @@ eval rate:            81.85 tokens/s
         $stats = ConvertFrom-OllamaVerboseStats -Text $stderr
         $stats.evalRate | Should -Be 42.0
     }
+
+    It 'parses load duration and total duration (cold start, seconds)' {
+        $stderr = @"
+total duration:       4.5019843s
+load duration:        2.8218176s
+prompt eval count:    28 token(s)
+prompt eval duration: 40.8138ms
+eval count:           144 token(s)
+eval duration:        4.0391184s
+eval rate:            81.85 tokens/s
+"@
+        $stats = ConvertFrom-OllamaVerboseStats -Text $stderr
+        $stats.loadDurationMs  | Should -Be 2822
+        $stats.totalDurationMs | Should -Be 4502
+        $stats.evalRate        | Should -Be 81.85
+    }
+
+    It 'parses load duration and total duration (warm, milliseconds)' {
+        $stderr = @"
+total duration:       1.5019843s
+load duration:        23.1902ms
+eval count:           99 token(s)
+eval duration:        1.3s
+eval rate:            75.91 tokens/s
+"@
+        $stats = ConvertFrom-OllamaVerboseStats -Text $stderr
+        $stats.loadDurationMs  | Should -Be 23
+        $stats.totalDurationMs | Should -Be 1502
+    }
+
+    It 'omits loadDurationMs and totalDurationMs when not present in stderr' {
+        $stderr = "eval count: 18 tokens`neval rate: 56.3 tokens/s`n"
+        $stats = ConvertFrom-OllamaVerboseStats -Text $stderr
+        $stats.ContainsKey('loadDurationMs')  | Should -BeFalse
+        $stats.ContainsKey('totalDurationMs') | Should -BeFalse
+        $stats.evalCount                      | Should -Be 18
+    }
 }
 
 Describe 'Invoke-OllamaModel -CaptureStats' -Tag 'integration' {
