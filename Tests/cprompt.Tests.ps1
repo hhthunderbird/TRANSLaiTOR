@@ -1024,3 +1024,50 @@ Describe 'Get-MetricsSummary with compilerEval entries' {
         $s.CompilerEvalCountMedian  | Should -Be 60
     }
 }
+
+Describe 'Get-MetricsSummary cold-start detection' {
+    It 'counts entries with loadDurationMs > 500 as cold starts' {
+        $entries = @(
+            [pscustomobject]@{ compilerEval = @{ evalRate = 10.0; loadDurationMs = 2822 } },
+            [pscustomobject]@{ compilerEval = @{ evalRate = 20.0; loadDurationMs = 23 } },
+            [pscustomobject]@{ compilerEval = @{ evalRate = 15.0; loadDurationMs = 800 } },
+            [pscustomobject]@{ totalMs = 100 }
+        )
+        $s = Get-MetricsSummary -Entries $entries
+        $s.ColdStartCount | Should -Be 2
+        $s.ColdStartRate  | Should -Be 0.5
+    }
+
+    It 'detects cold start from refinerEval.loadDurationMs too' {
+        $entries = @(
+            [pscustomobject]@{
+                refinerEval  = @{ evalRate = 56.3; loadDurationMs = 1500 }
+                compilerEval = @{ evalRate = 20.0; loadDurationMs = 23 }
+            },
+            [pscustomobject]@{
+                compilerEval = @{ evalRate = 10.0; loadDurationMs = 10 }
+            }
+        )
+        $s = Get-MetricsSummary -Entries $entries
+        $s.ColdStartCount | Should -Be 1
+        $s.ColdStartRate  | Should -Be 0.5
+    }
+
+    It 'returns zero cold starts when no entries have loadDurationMs' {
+        $entries = @(
+            [pscustomobject]@{ compilerEval = @{ evalRate = 10.0 } },
+            [pscustomobject]@{ totalMs = 200 }
+        )
+        $s = Get-MetricsSummary -Entries $entries
+        $s.ColdStartCount | Should -Be 0
+        $s.ColdStartRate  | Should -Be 0.0
+    }
+
+    It 'treats exactly 500ms as warm (strictly greater threshold)' {
+        $entries = @(
+            [pscustomobject]@{ compilerEval = @{ evalRate = 10.0; loadDurationMs = 500 } }
+        )
+        $s = Get-MetricsSummary -Entries $entries
+        $s.ColdStartCount | Should -Be 0
+    }
+}
