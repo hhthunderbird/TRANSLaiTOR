@@ -41,6 +41,13 @@ if ($summary.ColdStartCount -gt 0) {
     Write-Host ("Cold starts      : {0}/{1} ({2:P1})" -f $summary.ColdStartCount, $summary.Count, $summary.ColdStartRate)
 }
 
+if ($summary.ClaudeSendCount -gt 0) {
+    Write-Host ("Claude sends     : {0}" -f $summary.ClaudeSendCount)
+    Write-Host ("Claude cost total: `${0:N2}" -f $summary.ClaudeCostTotal)
+    Write-Host ("Claude cost avg  : `${0:N2}" -f $summary.ClaudeCostAvg)
+    Write-Host ("Claude tokens avg: {0} out / {1} in" -f $summary.ClaudeAvgOutputTokens, $summary.ClaudeAvgInputTokens)
+}
+
 Write-Host ''
 Write-Host 'Mode counts:'
 foreach ($mode in ($summary.ModeCounts.Keys | Sort-Object)) {
