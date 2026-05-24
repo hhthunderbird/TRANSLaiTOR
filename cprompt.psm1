@@ -499,6 +499,16 @@ function Test-InputIsZeroSignal {
     return ($words.Count -lt $MinWords)
 }
 
+function Test-InputIsMetaQuery {
+    [CmdletBinding()]
+    param([AllowNull()][AllowEmptyString()][string]$Text)
+    if ([string]::IsNullOrWhiteSpace($Text)) { return $false }
+    $whWord      = '(qual|que|o que|por que|como|quando|onde|what|why|how|when|where|which|who|whose)'
+    $stateMarker = '(agora|falta|pr[oó]ximo|pendente|restante|now|left|next|current|todo|remaining|status|progress)'
+    $pattern     = "(?i)^\s*$whWord\b.*\b$stateMarker\b.*\?\s*$"
+    return [bool]($Text -match $pattern)
+}
+
 function Get-RefinerOutput {
     [CmdletBinding()]
     param([string]$RawOutput)
@@ -650,6 +660,7 @@ Export-ModuleMember -Function `
     Invoke-OllamaModel, `
     Test-InputAcceptable, `
     Test-InputIsZeroSignal, `
+    Test-InputIsMetaQuery, `
     Get-CacheKey, `
     Get-CachedXml, `
     Set-CachedXml, `
