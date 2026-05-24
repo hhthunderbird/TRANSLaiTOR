@@ -1071,3 +1071,61 @@ Describe 'Get-MetricsSummary cold-start detection' {
         $s.ColdStartCount | Should -Be 0
     }
 }
+
+Describe 'Get-MetricsSummary Claude usage aggregation' {
+    It 'computes Claude send count, cost, and average tokens' {
+        $entries = @(
+            [pscustomobject]@{
+                claudeUsage = @{
+                    inputTokens = 100; outputTokens = 50
+                    costUsd = 0.10; durationMs = 2000
+                }
+            },
+            [pscustomobject]@{
+                claudeUsage = @{
+                    inputTokens = 200; outputTokens = 80
+                    costUsd = 0.20; durationMs = 3000
+                }
+            },
+            [pscustomobject]@{ totalMs = 500 }
+        )
+        $s = Get-MetricsSummary -Entries $entries
+        $s.ClaudeSendCount       | Should -Be 2
+        $s.ClaudeCostTotal       | Should -Be 0.30
+        $s.ClaudeCostAvg         | Should -Be 0.15
+        $s.ClaudeAvgInputTokens  | Should -Be 150
+        $s.ClaudeAvgOutputTokens | Should -Be 65
+    }
+
+    It 'returns zero Claude fields when no entries have claudeUsage' {
+        $entries = @(
+            [pscustomobject]@{ totalMs = 100 },
+            [pscustomobject]@{ totalMs = 200 }
+        )
+        $s = Get-MetricsSummary -Entries $entries
+        $s.ClaudeSendCount       | Should -Be 0
+        $s.ClaudeCostTotal       | Should -Be 0
+        $s.ClaudeCostAvg         | Should -Be 0
+        $s.ClaudeAvgInputTokens  | Should -Be 0
+        $s.ClaudeAvgOutputTokens | Should -Be 0
+    }
+
+    It 'tolerates mix of entries with and without claudeUsage' {
+        $entries = @(
+            [pscustomobject]@{
+                claudeUsage = @{
+                    inputTokens = 80; outputTokens = 40
+                    costUsd = 0.05; durationMs = 1000
+                }
+            },
+            [pscustomobject]@{ totalMs = 300 },
+            [pscustomobject]@{ totalMs = 400 }
+        )
+        $s = Get-MetricsSummary -Entries $entries
+        $s.ClaudeSendCount       | Should -Be 1
+        $s.ClaudeCostTotal       | Should -Be 0.05
+        $s.ClaudeCostAvg         | Should -Be 0.05
+        $s.ClaudeAvgInputTokens  | Should -Be 80
+        $s.ClaudeAvgOutputTokens | Should -Be 40
+    }
+}
