@@ -454,6 +454,29 @@ function Get-MetricsSummary {
     return [pscustomobject]$summary
 }
 
+function ConvertTo-SinceDate {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Value)
+
+    $Value = $Value.Trim()
+
+    if ($Value -match '^\d+([hdw])$') {
+        $num = [int]($Value -replace '[hdw]$','')
+        switch ($Matches[1]) {
+            'h' { return [datetime]::Now.AddHours(-$num) }
+            'd' { return [datetime]::Now.AddDays(-$num) }
+            'w' { return [datetime]::Now.AddDays(-$num * 7) }
+        }
+    }
+
+    try {
+        return [datetime]::Parse($Value)
+    } catch {
+        Write-Error "Invalid -Since value: '$Value'. Use relative (7d, 24h, 1w) or ISO-8601 (2026-05-01)."
+        return $null
+    }
+}
+
 function Test-InputAcceptable {
     [CmdletBinding()]
     param(
@@ -618,6 +641,7 @@ Export-ModuleMember -Function `
     Remove-Bom, `
     Remove-AnsiEscapes, `
     ConvertFrom-OllamaVerboseStats, `
+    ConvertTo-SinceDate, `
     Get-PromptXml, `
     Test-PromptXml, `
     Resolve-CompilerFallback, `
