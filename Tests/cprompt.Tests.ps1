@@ -848,6 +848,43 @@ eval rate:            81.85 tokens/s
         $stats = ConvertFrom-OllamaVerboseStats -Text $stderr
         $stats.evalRate | Should -Be 42.0
     }
+
+    It 'parses load duration and total duration (cold start, seconds)' {
+        $stderr = @"
+total duration:       4.5019843s
+load duration:        2.8218176s
+prompt eval count:    28 token(s)
+prompt eval duration: 40.8138ms
+eval count:           144 token(s)
+eval duration:        4.0391184s
+eval rate:            81.85 tokens/s
+"@
+        $stats = ConvertFrom-OllamaVerboseStats -Text $stderr
+        $stats.loadDurationMs  | Should -Be 2822
+        $stats.totalDurationMs | Should -Be 4502
+        $stats.evalRate        | Should -Be 81.85
+    }
+
+    It 'parses load duration and total duration (warm, milliseconds)' {
+        $stderr = @"
+total duration:       1.5019843s
+load duration:        23.1902ms
+eval count:           99 token(s)
+eval duration:        1.3s
+eval rate:            75.91 tokens/s
+"@
+        $stats = ConvertFrom-OllamaVerboseStats -Text $stderr
+        $stats.loadDurationMs  | Should -Be 23
+        $stats.totalDurationMs | Should -Be 1502
+    }
+
+    It 'omits loadDurationMs and totalDurationMs when not present in stderr' {
+        $stderr = "eval count: 18 tokens`neval rate: 56.3 tokens/s`n"
+        $stats = ConvertFrom-OllamaVerboseStats -Text $stderr
+        $stats.ContainsKey('loadDurationMs')  | Should -BeFalse
+        $stats.ContainsKey('totalDurationMs') | Should -BeFalse
+        $stats.evalCount                      | Should -Be 18
+    }
 }
 
 Describe 'Invoke-OllamaModel -CaptureStats' -Tag 'integration' {
@@ -985,5 +1022,52 @@ Describe 'Get-MetricsSummary with compilerEval entries' {
         $s.CompilerEvalRateP95      | Should -Be 20.0
         # Sorted evalCount: 60, 80 -> median (index ceil(0.5*2)-1=0) -> 60
         $s.CompilerEvalCountMedian  | Should -Be 60
+    }
+}
+
+Describe 'Get-MetricsSummary cold-start detection' {
+    It 'counts entries with loadDurationMs > 500 as cold starts' {
+        $entries = @(
+            [pscustomobject]@{ compilerEval = @{ evalRate = 10.0; loadDurationMs = 2822 } },
+            [pscustomobject]@{ compilerEval = @{ evalRate = 20.0; loadDurationMs = 23 } },
+            [pscustomobject]@{ compilerEval = @{ evalRate = 15.0; loadDurationMs = 800 } },
+            [pscustomobject]@{ totalMs = 100 }
+        )
+        $s = Get-MetricsSummary -Entries $entries
+        $s.ColdStartCount | Should -Be 2
+        $s.ColdStartRate  | Should -Be 0.5
+    }
+
+    It 'detects cold start from refinerEval.loadDurationMs too' {
+        $entries = @(
+            [pscustomobject]@{
+                refinerEval  = @{ evalRate = 56.3; loadDurationMs = 1500 }
+                compilerEval = @{ evalRate = 20.0; loadDurationMs = 23 }
+            },
+            [pscustomobject]@{
+                compilerEval = @{ evalRate = 10.0; loadDurationMs = 10 }
+            }
+        )
+        $s = Get-MetricsSummary -Entries $entries
+        $s.ColdStartCount | Should -Be 1
+        $s.ColdStartRate  | Should -Be 0.5
+    }
+
+    It 'returns zero cold starts when no entries have loadDurationMs' {
+        $entries = @(
+            [pscustomobject]@{ compilerEval = @{ evalRate = 10.0 } },
+            [pscustomobject]@{ totalMs = 200 }
+        )
+        $s = Get-MetricsSummary -Entries $entries
+        $s.ColdStartCount | Should -Be 0
+        $s.ColdStartRate  | Should -Be 0.0
+    }
+
+    It 'treats exactly 500ms as warm (strictly greater threshold)' {
+        $entries = @(
+            [pscustomobject]@{ compilerEval = @{ evalRate = 10.0; loadDurationMs = 500 } }
+        )
+        $s = Get-MetricsSummary -Entries $entries
+        $s.ColdStartCount | Should -Be 0
     }
 }

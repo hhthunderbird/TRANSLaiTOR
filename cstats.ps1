@@ -37,6 +37,10 @@ if ($summary.CompilerEvalCountMedian -gt 0) {
     Write-Host ("Compiler tokens out (median): {0}" -f $summary.CompilerEvalCountMedian)
 }
 
+if ($summary.ColdStartCount -gt 0) {
+    Write-Host ("Cold starts      : {0}/{1} ({2:P1})" -f $summary.ColdStartCount, $summary.Count, $summary.ColdStartRate)
+}
+
 Write-Host ''
 Write-Host 'Mode counts:'
 foreach ($mode in ($summary.ModeCounts.Keys | Sort-Object)) {

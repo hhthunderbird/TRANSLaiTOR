@@ -63,6 +63,18 @@ function ConvertFrom-OllamaVerboseStats {
     $m = [regex]::Match($Text, 'eval\s+rate:\s*([\d.]+)\s*tokens?/s', $opts)
     if ($m.Success) { $stats.evalRate = [double]$m.Groups[1].Value }
 
+    $m = [regex]::Match($Text, 'load\s+duration:\s*([\d.]+)(ms|s)\b', $opts)
+    if ($m.Success) {
+        $ms = & $toMs $m.Groups[1].Value $m.Groups[2].Value
+        if ($null -ne $ms) { $stats.loadDurationMs = $ms }
+    }
+
+    $m = [regex]::Match($Text, 'total\s+duration:\s*([\d.]+)(ms|s)\b', $opts)
+    if ($m.Success) {
+        $ms = & $toMs $m.Groups[1].Value $m.Groups[2].Value
+        if ($null -ne $ms) { $stats.totalDurationMs = $ms }
+    }
+
     if ($stats.Count -eq 0) { return $null }
     return $stats
 }
@@ -326,6 +338,8 @@ function Get-MetricsSummary {
         CompilerEvalRateP50    = 0
         CompilerEvalRateP95    = 0
         CompilerEvalCountMedian = 0
+        ColdStartCount         = 0
+        ColdStartRate          = 0.0
     }
 
     if ($Entries.Count -eq 0) { return [pscustomobject]$summary }
@@ -393,6 +407,25 @@ function Get-MetricsSummary {
         Sort-Object)
     if ($counts.Count -gt 0) {
         $summary.CompilerEvalCountMedian = $counts[[math]::Max(0, [math]::Ceiling(0.50 * $counts.Count) - 1)]
+    }
+
+    $coldCount = 0
+    foreach ($e in $Entries) {
+        $isCold = $false
+        foreach ($evalKey in @('compilerEval', 'refinerEval')) {
+            if (& $hasField $e $evalKey) {
+                $evalObj = $e.$evalKey
+                if ((& $hasField $evalObj 'loadDurationMs') -and [int]$evalObj.loadDurationMs -gt 500) {
+                    $isCold = $true
+                    break
+                }
+            }
+        }
+        if ($isCold) { $coldCount++ }
+    }
+    $summary.ColdStartCount = $coldCount
+    if ($Entries.Count -gt 0) {
+        $summary.ColdStartRate = [math]::Round($coldCount / $Entries.Count, 4)
     }
 
     return [pscustomobject]$summary
