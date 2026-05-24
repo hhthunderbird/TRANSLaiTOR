@@ -115,10 +115,11 @@ if (-not $skipRefiner -and (Test-InputIsZeroSignal -Text $userInput)) {
         Write-Host '--- input muito vago, reformule ---' -ForegroundColor DarkCyan
         $q = 'reformule em uma frase com area, problema e stack:'
         Write-Host "1) $q" -ForegroundColor Yellow
-        $answer = Read-Host '>'
-        $pairs = @(@{ Question = $q; Answer = $answer })
-        $userInput = Merge-RefinementAnswers -Raw $rawInput -Pairs $pairs
-        if ($userInput -ne $rawInput) { $refined = $true }
+        $answer = (Read-Host '>').Trim()
+        if ($answer) {
+            $userInput = $answer
+            $refined = $true
+        }
         $metricMode = 'pregate'
         $skipRefiner = $true
     } else {
