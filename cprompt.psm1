@@ -509,6 +509,83 @@ function Test-InputIsMetaQuery {
     return [bool]($Text -match $pattern)
 }
 
+function Get-ProjectContext {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [scriptblock]$OnProgress,
+        [int]$BudgetMs = 0
+    )
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $notify = { param($msg) if ($OnProgress) { & $OnProgress $msg } }
+
+    $overBudget = {
+        if ($BudgetMs -le 0) { return $false }
+        return ($sw.ElapsedMilliseconds -ge $BudgetMs)
+    }
+
+    $result = @{
+        Branch       = ''
+        Status       = ''
+        Log          = ''
+        Todos        = $null
+        ProjectFiles = @{}
+        ElapsedMs    = 0
+    }
+
+    $savedLocation = Get-Location
+    try {
+        Set-Location -LiteralPath $Path
+
+        # Step 1: git status
+        & $notify '[1/4] git status...'
+        try { $result.Status = (git status --short 2>$null | Out-String).Trim() } catch {}
+
+        # Step 2: git log + branch
+        & $notify '[2/4] git log...'
+        try { $result.Branch = (git branch --show-current 2>$null | Out-String).Trim() } catch {}
+        try { $result.Log = (git log --oneline -15 2>$null | Out-String).Trim() } catch {}
+
+        # Step 3: TODOs (budget-gated)
+        if (-not (& $overBudget)) {
+            & $notify '[3/4] scanning TODOs...'
+            try {
+                $changedFiles = @(git diff --name-only HEAD~50 2>$null | Where-Object { $_.Trim() })
+                if ($changedFiles.Count -gt 0) {
+                    $existingFiles = @($changedFiles | Where-Object { Test-Path -LiteralPath $_ })
+                    if ($existingFiles.Count -gt 0) {
+                        $matches = @(Select-String -Pattern 'TODO|FIXME|HACK' -Path $existingFiles -ErrorAction SilentlyContinue |
+                            Select-Object -First 30 |
+                            ForEach-Object { "$($_.RelativePath):$($_.LineNumber): $($_.Line.Trim())" })
+                        if ($matches.Count -gt 0) {
+                            $result.Todos = $matches -join "`n"
+                        }
+                    }
+                }
+            } catch {}
+        }
+
+        # Step 4: project files
+        & $notify '[4/4] project files...'
+        foreach ($fname in @('CLAUDE.md', 'README.md')) {
+            $fpath = Join-Path $Path $fname
+            if (Test-Path -LiteralPath $fpath) {
+                $content = Get-Content -LiteralPath $fpath -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
+                if ($content -and $content.Length -gt 2000) {
+                    $content = $content.Substring(0, 2000)
+                }
+                if ($content) { $result.ProjectFiles[$fname] = $content }
+            }
+        }
+    } finally {
+        Set-Location -LiteralPath $savedLocation
+    }
+
+    $sw.Stop()
+    $result.ElapsedMs = [int]$sw.ElapsedMilliseconds
+    return $result
+}
+
 function Format-MetaQueryXml {
     [CmdletBinding()]
     param(
@@ -697,6 +774,7 @@ Export-ModuleMember -Function `
     Test-InputAcceptable, `
     Test-InputIsZeroSignal, `
     Test-InputIsMetaQuery, `
+    Get-ProjectContext, `
     Format-MetaQueryXml, `
     Get-CacheKey, `
     Get-CachedXml, `

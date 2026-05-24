@@ -1347,7 +1347,7 @@ Describe 'Get-ProjectContext' {
     }
 
     It 'returns hashtable with expected keys' {
-        Mock git {
+        Mock git -ModuleName cprompt {
             param()
             $allArgs = $args -join ' '
             if ($allArgs -match 'status') { return 'M  file.ps1' }
@@ -1356,7 +1356,7 @@ Describe 'Get-ProjectContext' {
             if ($allArgs -match 'diff --name-only') { return 'file.ps1' }
             return ''
         }
-        Mock Select-String { return $null }
+        Mock Select-String -ModuleName cprompt { return $null }
 
         $result = Get-ProjectContext -Path $script:testDir
         $result           | Should -Not -BeNullOrEmpty
@@ -1369,24 +1369,24 @@ Describe 'Get-ProjectContext' {
     }
 
     It 'fires progress callback for each step' {
-        Mock git { return '' }
-        Mock Select-String { return $null }
+        Mock git -ModuleName cprompt { return '' }
+        Mock Select-String -ModuleName cprompt { return $null }
 
-        $msgs = @()
-        $result = Get-ProjectContext -Path $script:testDir -OnProgress { $msgs += $args[0] }
+        $msgs = [System.Collections.Generic.List[string]]::new()
+        $result = Get-ProjectContext -Path $script:testDir -OnProgress { $msgs.Add($args[0]) }
         $msgs.Count | Should -BeGreaterOrEqual 3
         $msgs[0] | Should -Match '\[1/4\]'
         $msgs[1] | Should -Match '\[2/4\]'
     }
 
     It 'caps TODO output at 30 lines' {
-        Mock git {
+        Mock git -ModuleName cprompt {
             param()
             $allArgs = $args -join ' '
             if ($allArgs -match 'diff --name-only') { return 'file.ps1' }
             return ''
         }
-        Mock Select-String {
+        Mock Select-String -ModuleName cprompt {
             $lines = (1..50 | ForEach-Object {
                 [pscustomobject]@{ Line = "file.ps1:$_`: # TODO item $_" }
             })
@@ -1402,8 +1402,8 @@ Describe 'Get-ProjectContext' {
 
     It 'caps project file content at 2000 chars' {
         $longContent = 'x' * 5000
-        Mock git { return '' }
-        Mock Select-String { return $null }
+        Mock git -ModuleName cprompt { return '' }
+        Mock Select-String -ModuleName cprompt { return $null }
 
         $claudeMd = Join-Path $script:testDir 'CLAUDE.md'
         Set-Content -LiteralPath $claudeMd -Value $longContent -Encoding UTF8
@@ -1417,20 +1417,20 @@ Describe 'Get-ProjectContext' {
     }
 
     It 'skips TODO step when BudgetMs is exceeded' {
-        Mock git {
+        Mock git -ModuleName cprompt {
             param()
             Start-Sleep -Milliseconds 50
             return ''
         }
-        Mock Select-String { return $null }
+        Mock Select-String -ModuleName cprompt { return $null }
 
         $result = Get-ProjectContext -Path $script:testDir -BudgetMs 1
         $result.Todos | Should -BeNullOrEmpty
     }
 
     It 'reads CLAUDE.md and README.md when present' {
-        Mock git { return '' }
-        Mock Select-String { return $null }
+        Mock git -ModuleName cprompt { return '' }
+        Mock Select-String -ModuleName cprompt { return $null }
 
         $claudeMd = Join-Path $script:testDir 'CLAUDE.md'
         $readmeMd = Join-Path $script:testDir 'README.md'
