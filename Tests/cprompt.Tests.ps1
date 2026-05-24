@@ -1215,6 +1215,131 @@ Describe 'Get-MetricsSummary Claude usage aggregation' {
     }
 }
 
+Describe 'Format-MetaQueryXml' {
+    BeforeAll {
+        $script:hookEnvelope = '(?s)<task>\s*\S.*?\s*</task>\s*<context>\s*\S.*?\s*</context>\s*<constraints>\s*\S.*?\s*</constraints>'
+    }
+
+    It 'produces valid XML envelope matching hook regex' {
+        $ctx = @{
+            Branch       = 'main'
+            Status       = '?? newfile.cs'
+            Log          = 'abc1234 fix auth'
+            Todos        = 'src/foo.cs:42: // TODO fix this'
+            ProjectFiles = @{ 'CLAUDE.md' = 'project instructions' }
+            ElapsedMs    = 500
+        }
+        $xml = Format-MetaQueryXml -Question 'o que falta?' -Context $ctx
+        $xml | Should -Match $script:hookEnvelope
+    }
+
+    It 'includes branch in context tag' {
+        $ctx = @{
+            Branch       = 'feat/cool'
+            Status       = ''
+            Log          = ''
+            Todos        = $null
+            ProjectFiles = @{}
+            ElapsedMs    = 100
+        }
+        $xml = Format-MetaQueryXml -Question 'what is left?' -Context $ctx
+        $xml | Should -Match 'feat/cool'
+    }
+
+    It 'includes git status in context tag' {
+        $ctx = @{
+            Branch       = 'main'
+            Status       = 'M  src/app.ps1'
+            Log          = ''
+            Todos        = $null
+            ProjectFiles = @{}
+            ElapsedMs    = 100
+        }
+        $xml = Format-MetaQueryXml -Question 'o que falta?' -Context $ctx
+        $xml | Should -Match 'src/app.ps1'
+    }
+
+    It 'includes git log in context tag' {
+        $ctx = @{
+            Branch       = 'main'
+            Status       = ''
+            Log          = "abc1234 first commit`ndef5678 second commit"
+            Todos        = $null
+            ProjectFiles = @{}
+            ElapsedMs    = 100
+        }
+        $xml = Format-MetaQueryXml -Question 'what next?' -Context $ctx
+        $xml | Should -Match 'abc1234 first commit'
+    }
+
+    It 'includes TODOs when present' {
+        $ctx = @{
+            Branch       = 'main'
+            Status       = ''
+            Log          = ''
+            Todos        = 'file.ps1:10: # TODO fix'
+            ProjectFiles = @{}
+            ElapsedMs    = 100
+        }
+        $xml = Format-MetaQueryXml -Question 'o que falta?' -Context $ctx
+        $xml | Should -Match 'TODO fix'
+    }
+
+    It 'handles null TODOs gracefully' {
+        $ctx = @{
+            Branch       = 'main'
+            Status       = ''
+            Log          = ''
+            Todos        = $null
+            ProjectFiles = @{}
+            ElapsedMs    = 100
+        }
+        $xml = Format-MetaQueryXml -Question 'what is left?' -Context $ctx
+        $xml | Should -Match $script:hookEnvelope
+        $xml | Should -Not -Match 'TODOs:'
+    }
+
+    It 'handles empty ProjectFiles gracefully' {
+        $ctx = @{
+            Branch       = 'main'
+            Status       = ''
+            Log          = ''
+            Todos        = $null
+            ProjectFiles = @{}
+            ElapsedMs    = 100
+        }
+        $xml = Format-MetaQueryXml -Question 'status?' -Context $ctx
+        $xml | Should -Match $script:hookEnvelope
+    }
+
+    It 'lists present project file names' {
+        $ctx = @{
+            Branch       = 'main'
+            Status       = ''
+            Log          = ''
+            Todos        = $null
+            ProjectFiles = @{ 'CLAUDE.md' = 'content'; 'README.md' = 'readme' }
+            ElapsedMs    = 100
+        }
+        $xml = Format-MetaQueryXml -Question 'status?' -Context $ctx
+        $xml | Should -Match 'CLAUDE\.md'
+        $xml | Should -Match 'README\.md'
+    }
+
+    It 'includes the original question in constraints tag' {
+        $ctx = @{
+            Branch       = 'main'
+            Status       = ''
+            Log          = ''
+            Todos        = $null
+            ProjectFiles = @{}
+            ElapsedMs    = 100
+        }
+        $xml = Format-MetaQueryXml -Question 'o que temos para fazer agora?' -Context $ctx
+        $xml | Should -Match 'o que temos para fazer agora\?'
+    }
+}
+
 Describe 'ConvertTo-SinceDate' {
     It 'parses relative durations: 7d, 24h, 1w' {
         $now = [datetime]::Now
