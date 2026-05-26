@@ -56,12 +56,70 @@ Describe 'c.ps1 -Help' {
     }
 }
 
-Describe 'c.ps1 with no prompt' {
-    It 'exits 1 and shows usage when no positional prompt is supplied' {
-        $tmpHome = Join-Path $TestDrive 'home-noprompt'
-        $res = Invoke-CScript -Args @() -IsolatedHome $tmpHome
+Describe 'c.ps1 with no prompt (clipboard mode)' {
+    BeforeAll {
+        # Extend Invoke-CScript to accept ClipboardOverride env var.
+        function Invoke-CScript-Clip {
+            [CmdletBinding()]
+            param(
+                [Parameter(Mandatory)][AllowEmptyCollection()][string[]]$Args,
+                [Parameter(Mandatory)][string]$IsolatedHome,
+                [string]$ClipboardText = ''
+            )
+            if (-not (Test-Path -LiteralPath $IsolatedHome)) {
+                New-Item -ItemType Directory -Path $IsolatedHome -Force | Out-Null
+            }
+            $psArgs = @('-NoProfile', '-NonInteractive', '-File', $script:cPs1)
+            if ($Args -and $Args.Count -gt 0) { $psArgs += $Args }
+
+            $prevHome = $env:USERPROFILE
+            $prevClip = $env:CPROMPT_TEST_CLIPBOARD
+            try {
+                $env:USERPROFILE = $IsolatedHome
+                $env:CPROMPT_TEST_CLIPBOARD = $ClipboardText
+                $tmpOut = [System.IO.Path]::GetTempFileName()
+                $tmpErr = "$tmpOut.err"
+                $proc = Start-Process -FilePath 'powershell.exe' -ArgumentList $psArgs `
+                    -NoNewWindow -Wait -PassThru `
+                    -RedirectStandardOutput $tmpOut `
+                    -RedirectStandardError $tmpErr
+                $exit = $proc.ExitCode
+                $stdout = (Get-Content -LiteralPath $tmpOut -Raw -ErrorAction SilentlyContinue) +
+                          (Get-Content -LiteralPath $tmpErr -Raw -ErrorAction SilentlyContinue)
+                Remove-Item -LiteralPath $tmpOut, $tmpErr -ErrorAction SilentlyContinue
+            } finally {
+                $env:USERPROFILE = $prevHome
+                $env:CPROMPT_TEST_CLIPBOARD = $prevClip
+            }
+            return [pscustomobject]@{ ExitCode = $exit; StdOut = $stdout }
+        }
+    }
+
+    It 'exits 1 with error message when clipboard is empty and no prompt supplied' {
+        $tmpHome = Join-Path $TestDrive 'home-clip-empty'
+        $res = Invoke-CScript-Clip -Args @() -IsolatedHome $tmpHome -ClipboardText ''
         $res.ExitCode | Should -Be 1
-        $res.StdOut   | Should -Match 'TRANSLaiTOR'
+        $res.StdOut   | Should -Match '(?i)clipboard'
+    }
+
+    It 'uses clipboard content when no prompt supplied (non-interactive/redirected)' {
+        $tmpHome = Join-Path $TestDrive 'home-clip-content'
+        # Need ollama stub for compilation
+        $stateDir = Join-Path $tmpHome '.cprompt'
+        New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+        $clipText = 'implement a REST endpoint for users'
+        $res = Invoke-CScript-Clip -Args @('-NoRefine', '-Raw') -IsolatedHome $tmpHome -ClipboardText $clipText
+        # Should attempt to process (may fail at ollama, but should NOT show usage/clipboard-empty error)
+        $res.StdOut | Should -Not -Match '(?i)clipboard vazio'
+        $res.ExitCode | Should -Not -Be 1
+    }
+
+    It 'shows clipboard preview with char count' {
+        $tmpHome = Join-Path $TestDrive 'home-clip-preview'
+        $multiLine = "line1`nline2`nline3`nline4`nline5`nline6`nline7`nline8"
+        $res = Invoke-CScript-Clip -Args @('-NoRefine', '-Raw') -IsolatedHome $tmpHome -ClipboardText $multiLine
+        # In non-interactive (subprocess), skips prompt but should still show preview indicator
+        $res.StdOut | Should -Match '(?i)clipboard.*\d+.*char'
     }
 }
 
