@@ -55,6 +55,32 @@ try {
 
     if (-not (Test-Path $cps)) { exit 0 }
 
+    # Extract last assistant text from transcript for conversation context.
+    # This lets the compiler understand mid-conversation replies like
+    # "agora reavalie os Injects" by seeing what was discussed before.
+    $lastAssistantText = ''
+    $transcriptPath = ''
+    if ($payload.PSObject.Properties.Match('transcript_path').Count -gt 0) {
+        $transcriptPath = [string]$payload.transcript_path
+    }
+    if ($transcriptPath -and (Test-Path $transcriptPath)) {
+        try {
+            $tLines = Get-Content $transcriptPath -Tail 60 -Encoding utf8
+            for ($ti = $tLines.Count - 1; $ti -ge 0; $ti--) {
+                if ($tLines[$ti] -notmatch '"type"\s*:\s*"assistant"') { continue }
+                $tEntry = $tLines[$ti] | ConvertFrom-Json -ErrorAction Stop
+                $textBlocks = @($tEntry.message.content | Where-Object { $_.type -eq 'text' })
+                if ($textBlocks.Count -gt 0) {
+                    $lastAssistantText = [string]$textBlocks[0].text
+                    break
+                }
+            }
+        } catch {}
+        if ($lastAssistantText.Length -gt 500) {
+            $lastAssistantText = $lastAssistantText.Substring(0, 500)
+        }
+    }
+
     $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
     [Console]::OutputEncoding = $utf8NoBom
     $OutputEncoding = $utf8NoBom
@@ -72,7 +98,11 @@ try {
     #            hook, PS routes Write-Host through powershell.exe stdout,
     #            and without this redirect those messages get injected as
     #            authoritative refinement.
-    $xml = & $cps -NonInteractive -Raw $trim 2>$null 3>$null 6>$null
+    $cpsArgs = @('-NonInteractive', '-Raw', $trim)
+    if ($lastAssistantText) {
+        $cpsArgs = @('-NonInteractive', '-Raw', '-ConversationContext', $lastAssistantText, $trim)
+    }
+    $xml = & $cps @cpsArgs 2>$null 3>$null 6>$null
     if ($LASTEXITCODE -ne 0) { exit 0 }
     $xml = ($xml | Out-String).Trim()
     if (-not $xml) { exit 0 }

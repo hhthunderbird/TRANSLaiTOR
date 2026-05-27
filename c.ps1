@@ -10,6 +10,7 @@ param(
     [switch]$Interactive,
     [string]$Model = 'prompt-opt',
     [string]$RefinerModel = 'prompt-refiner',
+    [string]$ConversationContext = '',
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$Prompt
 )
@@ -264,8 +265,12 @@ if (-not $xml) {
     $ErrorActionPreference = 'Continue'
     $ollamaOutput = ''
     $compilerWatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $compilerInput = $userInput
+    if ($ConversationContext) {
+        $compilerInput = "[CONTEXTO DA CONVERSA]`n$ConversationContext`n[PROMPT DO USUÁRIO]`n$userInput"
+    }
     try {
-        $compilerResult = Invoke-OllamaModel -Text $userInput -Model $Model -CaptureStats
+        $compilerResult = Invoke-OllamaModel -Text $compilerInput -Model $Model -CaptureStats
         $ollamaOutput   = [string]$compilerResult.Text
         $compilerStats  = $compilerResult.Stats
     } catch {
