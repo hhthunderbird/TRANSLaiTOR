@@ -1,0 +1,160 @@
+﻿### #1
+```xml
+<task>Avaliar uso dos.Injects em sistema de microserviços</task><context>Sistema de microservições, injeção dependeria</context><constraints>Análise da complexidade das dependências, otimização com interfaces abstratas e construtores personalizados</constraints>
+```
+
+### #2
+```xml
+<task>Iniciar análise e pesquisa sobre o problema apresentado</task><context>Ferramentas de desenvolvimento, técnicas de resolução de problemas</context><constraints>Especificar requisitos claros para a próxima etapa da busca por uma solução adequada.</constraints>
+```
+
+### #3
+```xml
+<task>Fechar sessão sem conclusão</task><context>Sistema de gerenciamento de tarefas</context><constraints>Cerrar todas as atividades em aberto e salvar estado atualizado</constraints>
+```
+
+### #4
+```xml
+<task>Priorizar ideias vagas e sem contexto</task><context>Falta informações para fornecer uma resposta específica</context><constraints>Autorização explícita: não posso criar algo a partir da nada.</constraints>
+```
+
+### #5
+```xml
+<task>Priorizar ideias vagas e sem contexto</task><context>Falta informações para fornecer uma resposta específica</context><constraints>Autorização explícita: não posso criar algo a partir da nada.</constraints>
+```
+
+### #6
+```xml
+<task>Auditoriar sistema existente</task><context>Sistemas em desenvolvimento, segurança e qualidade</context><constraints>Análise estrutural, identificação vulnerabilidades, documentação atualizada, plano correção priorizado</constraints>
+```
+
+### #7
+```xml
+<task>Criar lista de opções de linguagens e frameworks para implantação Cache LRU</task><context>Estrutura de dados, programação concorrente</context><constraints>Linguagens: Java, Python, JavaScript; Frameworks/ Bibliotecas: Redis, Memcached, Apache Ignite;</constraints>
+```
+
+### #8
+```xml
+<task>Avaliar necessidade de ação adicional</task><context>Evaluation e tomada de decisões</context><constraints>Análise dos resultados anteriores para determinar próxima etapa ou ajustes futuros</constraints>
+```
+
+### #9
+```xml
+<task>Voltarmos a revisão anterior</task><context>Ao invés disso, redefinamos nossa abordagem geral.</context><constraints>Priorizar aprendizado sobre perfeição em um único ponto específico do código. Revisões anteriores são úteis como referência histórica; devemos aprender com elas sem ficar preso nelas.</constraints>
+```
+
+### #10
+```xml
+<task>Pesquisar alternativas para nova Proof of Concept</task><context>Ferramenta pesquisa, ideias inovadoras</context><constraints>Bibliotecas open-source, frameworks emergentes, tendências em tecnologia atualizada</constraints>
+```
+
+### #11
+```xml
+<task>Ajustar visibilidade dos targets em edição</task><context>Estrutura de dados, Edição Intelektual</context><constraints>Habilitação/Deshabilitação visualização por padrões ou categorias específicas</constraints>
+```
+
+### #12
+```xml
+<task>Criar modelo de visão para compostação em tempo real</task><context>Piloto automotivo, Inteligência Artificial, Visão Computacional</context><constraints>Deteccao de objetos, localização precisa dos componentes, sincronia entre câmera e motorista</constraints>
+```
+
+### #13
+```xml
+<task>Criar componente dropdown seleção múltipla sem flag-enum</task><context>Frontend, UI componentes</context><constraints>uso de array ou lista para opções, evento onChange com valor atualizado, layout responsivo e acessibilidade</constraints>
+```
+
+### #14
+```xml
+<task>Aprofundamento em estruturas de dados Graphs</task><context>Estrutura de Dados, Teoria Computacional</context><constraints>Métodos para representação eficiente, algoritmos de busca e caminhada, propriedades topológicas importantes</constraints>
+```
+
+### #15
+```xml
+<task>Priorizar solicitação sem PR aberta</task><context>Gerrit/ GitLab/Github</context><constraints>Ajustar prioridade e reavaliar métricas de contribuição</constraints>
+```
+
+### #16
+```xml
+<task>Mudar propriedade Examen Membership em booleano para múltiplo</task><context>Banco relacional, alteração estrutura de dados</context><constraints>Criar tabela auxiliar ou campo separado se necessário, garantia integridade dos dados</constraints>
+```
+
+### #17
+```xml
+<task>Limpar log de depuração excessivo</task><context>Sistema operacional/Linux/Windows/MacOS</context><constraints>Ferramentas como grep, sed, find para busca eficiente; uso da ferramenta `git` com comando `log --oneline` ou similar para lista rápida dos últimos commit's.</constraints>
+```
+
+### #18
+```xml
+<task>Criar um Cache LRU no Golang</task><context>Goroutine seguro e escalável para uso em aplicativos web ou microserviços.</context><constraints>Estrutura de dados cachê que evita a sobrecarga com o tempo. Implementação thread-safe usando mutexes sem bloqueio por acesso aos campos do struct.</constraints>
+```
+
+### #19
+```xml
+<task>Fazer commit sem arquivos específicos mencionados anteriormente</task><context>Gerrit/ GitLab/CiCD</context><constraints>Omitir files: RaskellSkin* mat</constraints>
+```
+
+### #20
+```xml
+<task>Mostrar objetos não avaliados em lista examinada</task><context>Estrutura de dados, visualização de resultados</context><constraints>Filtro por estado ou atributo para mostrar apenas os que precisam ser avaliados novamente</constraints>
+```
+
+### #21
+```xml
+<task>Fazer Exemplo: Botões de Interatividade em Measure Exam Não Aparecem após Carregar Prefab de Exame</task><context>Xamarin.Forms, UWP/WinUI, Behavior Bindings e Eventos</context><constraints>Criar evento ou bindig do estado da questão no prefab, atualizar layout quando ocorre mudança na propriedade "IsInteractive" dos objetos de Questao</constraints>
+```
+
+### #22
+```xml
+<task>Criar inicialização segura para InteractiveMeasureTape em Controller</task><context>MVC .NET Core, injeção de dependência (DI)</context><constraints>Otimizar uso do Dispose e garantir não criar NULReferenceException durante a execução da aplicação</constraints>
+```
+
+### #23
+```xml
+<task>Criar lista de itens para commit</task><context>Gerrit/ GitLab CI/CD</context><constraints>Prioridade alta: backup dos dados no shelf; prioridade média: remover item desnecessário do código;</constraints>
+```
+
+### #24
+```xml
+<task>Analisar problema específico na execução dos controles no AutoHandSimulatorUIInteraction</task><context>C#/.NET, Unity, Raycasting</context><constraints>Filtragem do hit detection para reduzir número de controles processados simultaneamente, possíveis otimizações nos métodos de atualização da interface</constraints>
+```
+
+### #25
+```xml
+<task>Analisar problema com ToggleEventButton e eventos</task><context>C#/.NET, UI Componentes, Eventos</context><constraints>Possíveis causas: bind incorrecto do evento, estado inicial errático da toggle button, bloqueio no thread principal durante a execução do evento</constraints>
+```
+
+### #26
+```xml
+<task>Mapear memberships em rule visibility</task><context>Dados relacionais banco de dados, integridade dos dados</context><constraints>Criptografia hash membership list com cada regulação única, garantir que todas as regras sejam aplicadas corretamente aos membros da lista</constraints>
+```
+
+### #27
+```xml
+<task>Ocorreência do erro HighDefinition não encontrado em UnityEngine(Rendering)</task><context>Unity C#, desenvolvimento de jogos</context><constraints>Possível solução: adicionar referência à biblioteca Unity Rendering ou usar alias para o nome espelho "Rendering"</constraints>
+```
+
+### #28
+```xml
+<task>Resolver NullReferenceException em Interactive Measure Tape Body</task><context>C#/.NET, Unity, exceção de referência nula</context><constraints>Análise do código para identificar a causa raiz da exceção e implementar correções necessárias</constraints>
+```
+
+### #29
+```xml
+<task>Ferramenta para debugar erros em C# e Unity</task><context>Unity Editor, Visual Studio Code ou outra IDE de desenvolvimento</context><constraints>Criar um log detalhado dos erros com linhas de código relevantes, sugerir atualizações do compilador ou bibliotecas utilizadas.</constraints>
+```
+
+### #30
+```xml
+<task>Ajustar interface para melhor experiência do usuário com menos combinações</task><context>Desenvolvimento UI/UX, otimização da interação humana-máquina</context><constraints>simplificação das configurações por meio de categorias binárias em vez de estados múltiplos, reorganizar as opções dos menus desplegáveis</constraints>
+```
+
+### #31
+```xml
+<task>Pergunta sobre próximo passo</task><context>Criativo/ajudante</context><constraints>Repetir a pergunta sem mudança significativa</.constraints></constraints>
+```
+
+### #32
+```xml
+<task>Ferramenta Unity detectou problema com prefab UI Exames e sugeriu solução</task><context>Unity, importação de prefabs, erro de layout</context><constraints>Prefabrizar o componente ProgressIndicator ou substituir por um outro componentes alternativos</constraints>
+```
+
