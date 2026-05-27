@@ -700,6 +700,91 @@ Describe 'Test-InputIsZeroSignal' {
     }
 }
 
+Describe 'Test-InputIsMetaQuery' {
+    # True positives — meta/status queries with WH-word + state marker
+    It 'detects PT-BR status query with agora' {
+        (Test-InputIsMetaQuery -Text 'o que temos para fazer agora?') | Should -Be $true
+    }
+
+    It 'detects EN query with left' {
+        (Test-InputIsMetaQuery -Text "what's left to do?") | Should -Be $true
+    }
+
+    It 'detects PT-BR query with falta' {
+        (Test-InputIsMetaQuery -Text 'o que falta?') | Should -Be $true
+    }
+
+    It 'detects PT-BR query with proximo (no accent)' {
+        (Test-InputIsMetaQuery -Text 'qual o proximo passo?') | Should -Be $true
+    }
+
+    It 'detects PT-BR query with próximo (accented)' {
+        (Test-InputIsMetaQuery -Text 'qual o próximo passo?') | Should -Be $true
+    }
+
+    It 'detects EN query with now' {
+        (Test-InputIsMetaQuery -Text 'where are we now?') | Should -Be $true
+    }
+
+    It 'detects EN query with current status' {
+        (Test-InputIsMetaQuery -Text 'what is the current status?') | Should -Be $true
+    }
+
+    It 'detects EN query with remaining' {
+        (Test-InputIsMetaQuery -Text 'what work is remaining?') | Should -Be $true
+    }
+
+    It 'detects PT-BR query with pendente' {
+        (Test-InputIsMetaQuery -Text 'o que esta pendente?') | Should -Be $true
+    }
+
+    # True negatives — coding questions (WH-word but no state marker)
+    It 'rejects coding question about cache in Go' {
+        (Test-InputIsMetaQuery -Text 'como faco cache LRU em Go?') | Should -Be $false
+    }
+
+    It 'rejects EN coding question about error handling' {
+        (Test-InputIsMetaQuery -Text "what's the best way to handle errors?") | Should -Be $false
+    }
+
+    It 'rejects EN coding question about REST endpoint' {
+        (Test-InputIsMetaQuery -Text 'how do I create a REST endpoint?') | Should -Be $false
+    }
+
+    It 'rejects PT-BR coding question about testing lib' {
+        (Test-InputIsMetaQuery -Text 'qual a melhor lib para testes?') | Should -Be $false
+    }
+
+    It 'rejects EN coding question about slow query' {
+        (Test-InputIsMetaQuery -Text 'why is this query slow?') | Should -Be $false
+    }
+
+    # Edge cases
+    It 'returns $false for null' {
+        (Test-InputIsMetaQuery -Text $null) | Should -Be $false
+    }
+
+    It 'returns $false for empty string' {
+        (Test-InputIsMetaQuery -Text '') | Should -Be $false
+    }
+
+    It 'returns $false for whitespace' {
+        (Test-InputIsMetaQuery -Text '   ') | Should -Be $false
+    }
+
+    It 'returns $false when no question mark at end' {
+        (Test-InputIsMetaQuery -Text 'o que temos para fazer agora') | Should -Be $false
+    }
+
+    It 'returns $false for state marker without WH-word' {
+        (Test-InputIsMetaQuery -Text 'mostra o status agora?') | Should -Be $false
+    }
+
+    It 'is case insensitive' {
+        (Test-InputIsMetaQuery -Text 'O QUE FALTA?') | Should -Be $true
+    }
+}
+
 Describe 'Get-RefinerRegressions' {
     BeforeAll {
         function _baseCase {
@@ -1127,6 +1212,237 @@ Describe 'Get-MetricsSummary Claude usage aggregation' {
         $s.ClaudeCostAvg         | Should -Be 0.05
         $s.ClaudeAvgInputTokens  | Should -Be 80
         $s.ClaudeAvgOutputTokens | Should -Be 40
+    }
+}
+
+Describe 'Format-MetaQueryXml' {
+    BeforeAll {
+        $script:hookEnvelope = '(?s)<task>\s*\S.*?\s*</task>\s*<context>\s*\S.*?\s*</context>\s*<constraints>\s*\S.*?\s*</constraints>'
+    }
+
+    It 'produces valid XML envelope matching hook regex' {
+        $ctx = @{
+            Branch       = 'main'
+            Status       = '?? newfile.cs'
+            Log          = 'abc1234 fix auth'
+            Todos        = 'src/foo.cs:42: // TODO fix this'
+            ProjectFiles = @{ 'CLAUDE.md' = 'project instructions' }
+            ElapsedMs    = 500
+        }
+        $xml = Format-MetaQueryXml -Question 'o que falta?' -Context $ctx
+        $xml | Should -Match $script:hookEnvelope
+    }
+
+    It 'includes branch in context tag' {
+        $ctx = @{
+            Branch       = 'feat/cool'
+            Status       = ''
+            Log          = ''
+            Todos        = $null
+            ProjectFiles = @{}
+            ElapsedMs    = 100
+        }
+        $xml = Format-MetaQueryXml -Question 'what is left?' -Context $ctx
+        $xml | Should -Match 'feat/cool'
+    }
+
+    It 'includes git status in context tag' {
+        $ctx = @{
+            Branch       = 'main'
+            Status       = 'M  src/app.ps1'
+            Log          = ''
+            Todos        = $null
+            ProjectFiles = @{}
+            ElapsedMs    = 100
+        }
+        $xml = Format-MetaQueryXml -Question 'o que falta?' -Context $ctx
+        $xml | Should -Match 'src/app.ps1'
+    }
+
+    It 'includes git log in context tag' {
+        $ctx = @{
+            Branch       = 'main'
+            Status       = ''
+            Log          = "abc1234 first commit`ndef5678 second commit"
+            Todos        = $null
+            ProjectFiles = @{}
+            ElapsedMs    = 100
+        }
+        $xml = Format-MetaQueryXml -Question 'what next?' -Context $ctx
+        $xml | Should -Match 'abc1234 first commit'
+    }
+
+    It 'includes TODOs when present' {
+        $ctx = @{
+            Branch       = 'main'
+            Status       = ''
+            Log          = ''
+            Todos        = 'file.ps1:10: # TODO fix'
+            ProjectFiles = @{}
+            ElapsedMs    = 100
+        }
+        $xml = Format-MetaQueryXml -Question 'o que falta?' -Context $ctx
+        $xml | Should -Match 'TODO fix'
+    }
+
+    It 'handles null TODOs gracefully' {
+        $ctx = @{
+            Branch       = 'main'
+            Status       = ''
+            Log          = ''
+            Todos        = $null
+            ProjectFiles = @{}
+            ElapsedMs    = 100
+        }
+        $xml = Format-MetaQueryXml -Question 'what is left?' -Context $ctx
+        $xml | Should -Match $script:hookEnvelope
+        $xml | Should -Not -Match 'TODOs:'
+    }
+
+    It 'handles empty ProjectFiles gracefully' {
+        $ctx = @{
+            Branch       = 'main'
+            Status       = ''
+            Log          = ''
+            Todos        = $null
+            ProjectFiles = @{}
+            ElapsedMs    = 100
+        }
+        $xml = Format-MetaQueryXml -Question 'status?' -Context $ctx
+        $xml | Should -Match $script:hookEnvelope
+    }
+
+    It 'lists present project file names' {
+        $ctx = @{
+            Branch       = 'main'
+            Status       = ''
+            Log          = ''
+            Todos        = $null
+            ProjectFiles = @{ 'CLAUDE.md' = 'content'; 'README.md' = 'readme' }
+            ElapsedMs    = 100
+        }
+        $xml = Format-MetaQueryXml -Question 'status?' -Context $ctx
+        $xml | Should -Match 'CLAUDE\.md'
+        $xml | Should -Match 'README\.md'
+    }
+
+    It 'includes the original question in constraints tag' {
+        $ctx = @{
+            Branch       = 'main'
+            Status       = ''
+            Log          = ''
+            Todos        = $null
+            ProjectFiles = @{}
+            ElapsedMs    = 100
+        }
+        $xml = Format-MetaQueryXml -Question 'o que temos para fazer agora?' -Context $ctx
+        $xml | Should -Match 'o que temos para fazer agora\?'
+    }
+}
+
+Describe 'Get-ProjectContext' {
+    BeforeAll {
+        $script:testDir = Join-Path $TestDrive 'fake-repo'
+        New-Item -ItemType Directory -Path $script:testDir -Force | Out-Null
+    }
+
+    It 'returns hashtable with expected keys' {
+        Mock git -ModuleName cprompt {
+            param()
+            $allArgs = $args -join ' '
+            if ($allArgs -match 'status') { return 'M  file.ps1' }
+            if ($allArgs -match 'branch') { return 'main' }
+            if ($allArgs -match 'log')    { return 'abc1234 test commit' }
+            if ($allArgs -match 'diff --name-only') { return 'file.ps1' }
+            return ''
+        }
+        Mock Select-String -ModuleName cprompt { return $null }
+
+        $result = Get-ProjectContext -Path $script:testDir
+        $result           | Should -Not -BeNullOrEmpty
+        $result.Branch    | Should -Be 'main'
+        $result.Status    | Should -Match 'file.ps1'
+        $result.Log       | Should -Match 'abc1234'
+        $result.Keys      | Should -Contain 'ElapsedMs'
+        $result.Keys      | Should -Contain 'Todos'
+        $result.Keys      | Should -Contain 'ProjectFiles'
+    }
+
+    It 'fires progress callback for each step' {
+        Mock git -ModuleName cprompt { return '' }
+        Mock Select-String -ModuleName cprompt { return $null }
+
+        $msgs = [System.Collections.Generic.List[string]]::new()
+        $result = Get-ProjectContext -Path $script:testDir -OnProgress { $msgs.Add($args[0]) }
+        $msgs.Count | Should -BeGreaterOrEqual 3
+        $msgs[0] | Should -Match '\[1/4\]'
+        $msgs[1] | Should -Match '\[2/4\]'
+    }
+
+    It 'caps TODO output at 30 lines' {
+        Mock git -ModuleName cprompt {
+            param()
+            $allArgs = $args -join ' '
+            if ($allArgs -match 'diff --name-only') { return 'file.ps1' }
+            return ''
+        }
+        Mock Select-String -ModuleName cprompt {
+            $lines = (1..50 | ForEach-Object {
+                [pscustomobject]@{ Line = "file.ps1:$_`: # TODO item $_" }
+            })
+            return $lines
+        }
+
+        $result = Get-ProjectContext -Path $script:testDir
+        if ($result.Todos) {
+            $todoLines = @(($result.Todos -split "`n") | Where-Object { $_.Trim() })
+            $todoLines.Count | Should -BeLessOrEqual 30
+        }
+    }
+
+    It 'caps project file content at 2000 chars' {
+        $longContent = 'x' * 5000
+        Mock git -ModuleName cprompt { return '' }
+        Mock Select-String -ModuleName cprompt { return $null }
+
+        $claudeMd = Join-Path $script:testDir 'CLAUDE.md'
+        Set-Content -LiteralPath $claudeMd -Value $longContent -Encoding UTF8
+
+        $result = Get-ProjectContext -Path $script:testDir
+        if ($result.ProjectFiles -and $result.ProjectFiles['CLAUDE.md']) {
+            $result.ProjectFiles['CLAUDE.md'].Length | Should -BeLessOrEqual 2000
+        }
+
+        Remove-Item -LiteralPath $claudeMd -Force -ErrorAction SilentlyContinue
+    }
+
+    It 'skips TODO step when BudgetMs is exceeded' {
+        Mock git -ModuleName cprompt {
+            param()
+            Start-Sleep -Milliseconds 50
+            return ''
+        }
+        Mock Select-String -ModuleName cprompt { return $null }
+
+        $result = Get-ProjectContext -Path $script:testDir -BudgetMs 1
+        $result.Todos | Should -BeNullOrEmpty
+    }
+
+    It 'reads CLAUDE.md and README.md when present' {
+        Mock git -ModuleName cprompt { return '' }
+        Mock Select-String -ModuleName cprompt { return $null }
+
+        $claudeMd = Join-Path $script:testDir 'CLAUDE.md'
+        $readmeMd = Join-Path $script:testDir 'README.md'
+        Set-Content -LiteralPath $claudeMd -Value 'claude content' -Encoding UTF8
+        Set-Content -LiteralPath $readmeMd -Value 'readme content' -Encoding UTF8
+
+        $result = Get-ProjectContext -Path $script:testDir
+        $result.ProjectFiles['CLAUDE.md'] | Should -Match 'claude content'
+        $result.ProjectFiles['README.md'] | Should -Match 'readme content'
+
+        Remove-Item -LiteralPath $claudeMd -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $readmeMd -Force -ErrorAction SilentlyContinue
     }
 }
 

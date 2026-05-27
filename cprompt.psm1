@@ -499,6 +499,129 @@ function Test-InputIsZeroSignal {
     return ($words.Count -lt $MinWords)
 }
 
+function Test-InputIsMetaQuery {
+    [CmdletBinding()]
+    param([AllowNull()][AllowEmptyString()][string]$Text)
+    if ([string]::IsNullOrWhiteSpace($Text)) { return $false }
+    $whWord      = '(qual|que|o que|por que|como|quando|onde|what|why|how|when|where|which|who|whose)'
+    $stateMarker = '(agora|falta|pr[oó]ximo|pendente|restante|now|left|next|current|todo|remaining|status|progress)'
+    $pattern     = "(?i)^\s*$whWord\b.*\b$stateMarker\b.*\?\s*$"
+    return [bool]($Text -match $pattern)
+}
+
+function Get-ProjectContext {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [scriptblock]$OnProgress,
+        [int]$BudgetMs = 0
+    )
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $notify = { param($msg) if ($OnProgress) { & $OnProgress $msg } }
+
+    $overBudget = {
+        if ($BudgetMs -le 0) { return $false }
+        return ($sw.ElapsedMilliseconds -ge $BudgetMs)
+    }
+
+    $result = @{
+        Branch       = ''
+        Status       = ''
+        Log          = ''
+        Todos        = $null
+        ProjectFiles = @{}
+        ElapsedMs    = 0
+    }
+
+    $savedLocation = Get-Location
+    try {
+        Set-Location -LiteralPath $Path
+
+        # Step 1: git status
+        & $notify '[1/4] git status...'
+        try { $result.Status = (git status --short 2>$null | Out-String).Trim() } catch {}
+
+        # Step 2: git log + branch
+        & $notify '[2/4] git log...'
+        try { $result.Branch = (git branch --show-current 2>$null | Out-String).Trim() } catch {}
+        try { $result.Log = (git log --oneline -15 2>$null | Out-String).Trim() } catch {}
+
+        # Step 3: TODOs (budget-gated)
+        if (-not (& $overBudget)) {
+            & $notify '[3/4] scanning TODOs...'
+            try {
+                $changedFiles = @(git diff --name-only HEAD~50 2>$null | Where-Object { $_.Trim() })
+                if ($changedFiles.Count -gt 0) {
+                    $existingFiles = @($changedFiles | Where-Object { Test-Path -LiteralPath $_ })
+                    if ($existingFiles.Count -gt 0) {
+                        $matches = @(Select-String -Pattern 'TODO|FIXME|HACK' -Path $existingFiles -ErrorAction SilentlyContinue |
+                            Select-Object -First 30 |
+                            ForEach-Object { "$($_.RelativePath):$($_.LineNumber): $($_.Line.Trim())" })
+                        if ($matches.Count -gt 0) {
+                            $result.Todos = $matches -join "`n"
+                        }
+                    }
+                }
+            } catch {}
+        }
+
+        # Step 4: project files
+        & $notify '[4/4] project files...'
+        foreach ($fname in @('CLAUDE.md', 'README.md')) {
+            $fpath = Join-Path $Path $fname
+            if (Test-Path -LiteralPath $fpath) {
+                $content = Get-Content -LiteralPath $fpath -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
+                if ($content -and $content.Length -gt 2000) {
+                    $content = $content.Substring(0, 2000)
+                }
+                if ($content) { $result.ProjectFiles[$fname] = $content }
+            }
+        }
+    } finally {
+        Set-Location -LiteralPath $savedLocation
+    }
+
+    $sw.Stop()
+    $result.ElapsedMs = [int]$sw.ElapsedMilliseconds
+    return $result
+}
+
+function Format-MetaQueryXml {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Question,
+        [Parameter(Mandatory)][hashtable]$Context
+    )
+    $parts = @()
+    if ($Context.Branch) { $parts += "Branch: $($Context.Branch)" }
+    if ($Context.Status) {
+        $statusLines = @(($Context.Status -split "`n") | Where-Object { $_.Trim() })
+        $parts += "Modified: $($statusLines.Count) file(s)"
+        $parts += "Files: $($Context.Status.Trim())"
+    }
+    if ($Context.Log) {
+        $logLines = @(($Context.Log -split "`n") | Where-Object { $_.Trim() })
+        $parts += "Recent: $($logLines -join ' | ')"
+    }
+    if ($Context.Todos) {
+        $todoLines = @(($Context.Todos -split "`n") | Where-Object { $_.Trim() })
+        $parts += "TODOs: $($todoLines.Count) item(s) -- $($Context.Todos.Trim())"
+    }
+    $pfKeys = @()
+    if ($Context.ProjectFiles -and $Context.ProjectFiles.Count -gt 0) {
+        foreach ($k in $Context.ProjectFiles.Keys) { $pfKeys += $k }
+        $parts += "Project files: $($pfKeys -join ', ')"
+    }
+
+    $contextBody = $parts -join ' | '
+    if (-not $contextBody) { $contextBody = 'No project context available' }
+
+    $task = 'Responder consulta de status do projeto'
+    $constraints = "Responder a pergunta do usuario: $Question | Listar trabalho pendente, estado atual do repositorio, proximos passos"
+
+    return "<task>$task</task><context>$contextBody</context><constraints>$constraints</constraints>"
+}
+
 function Get-RefinerOutput {
     [CmdletBinding()]
     param([string]$RawOutput)
@@ -650,6 +773,9 @@ Export-ModuleMember -Function `
     Invoke-OllamaModel, `
     Test-InputAcceptable, `
     Test-InputIsZeroSignal, `
+    Test-InputIsMetaQuery, `
+    Get-ProjectContext, `
+    Format-MetaQueryXml, `
     Get-CacheKey, `
     Get-CachedXml, `
     Set-CachedXml, `
