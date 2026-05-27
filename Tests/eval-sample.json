@@ -1,0 +1,226 @@
+﻿[
+    {
+        "id":  "2026-05-26T14:30:49.2863685Z",
+        "len":  25,
+        "raw":  "agora reavalie os Injects",
+        "xml":  "\u003ctask\u003eAvaliar uso dos.Injects em sistema de microserviços\u003c/task\u003e\u003ccontext\u003eSistema de microservições, injeção dependeria\u003c/context\u003e\u003cconstraints\u003eAnálise da complexidade das dependências, otimização com interfaces abstratas e construtores personalizados\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-22T12:51:32.3289743Z",
+        "len":  21,
+        "raw":  "comece a investigação",
+        "xml":  "\u003ctask\u003eIniciar análise e pesquisa sobre o problema apresentado\u003c/task\u003e\u003ccontext\u003eFerramentas de desenvolvimento, técnicas de resolução de problemas\u003c/context\u003e\u003cconstraints\u003eEspecificar requisitos claros para a próxima etapa da busca por uma solução adequada.\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-25T20:43:54.9323656Z",
+        "len":  28,
+        "raw":  "guarde para a próxima sessão",
+        "xml":  "\u003ctask\u003eFechar sessão sem conclusão\u003c/task\u003e\u003ccontext\u003eSistema de gerenciamento de tarefas\u003c/context\u003e\u003cconstraints\u003eCerrar todas as atividades em aberto e salvar estado atualizado\u003c/constraints\u003e",
+        "cached":  true
+    },
+    {
+        "id":  "2026-05-24T17:09:16.1629640Z",
+        "len":  10,
+        "raw":  "ideia vaga",
+        "xml":  "\u003ctask\u003ePriorizar ideias vagas e sem contexto\u003c/task\u003e\u003ccontext\u003eFalta informações para fornecer uma resposta específica\u003c/context\u003e\u003cconstraints\u003eAutorização explícita: não posso criar algo a partir da nada.\u003c/constraints\u003e",
+        "cached":  true
+    },
+    {
+        "id":  "2026-05-24T17:08:41.2314973Z",
+        "len":  10,
+        "raw":  "ideia vaga",
+        "xml":  "\u003ctask\u003ePriorizar ideias vagas e sem contexto\u003c/task\u003e\u003ccontext\u003eFalta informações para fornecer uma resposta específica\u003c/context\u003e\u003cconstraints\u003eAutorização explícita: não posso criar algo a partir da nada.\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-14T15:43:40.4334774Z",
+        "len":  25,
+        "raw":  "faça auditoria no projeto",
+        "xml":  "\u003ctask\u003eAuditoriar sistema existente\u003c/task\u003e\u003ccontext\u003eSistemas em desenvolvimento, segurança e qualidade\u003c/context\u003e\u003cconstraints\u003eAnálise estrutural, identificação vulnerabilidades, documentação atualizada, plano correção priorizado\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-14T03:02:44.1461956Z",
+        "len":  10,
+        "raw":  "ideia vaga",
+        "xml":  "\u003ctask\u003eCriar lista de opções de linguagens e frameworks para implantação Cache LRU\u003c/task\u003e\u003ccontext\u003eEstrutura de dados, programação concorrente\u003c/context\u003e\u003cconstraints\u003eLinguagens: Java, Python, JavaScript; Frameworks/ Bibliotecas: Redis, Memcached, Apache Ignite;\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-24T17:18:50.6687175Z",
+        "len":  20,
+        "raw":  "A, depois follow-ups",
+        "xml":  "\u003ctask\u003eAvaliar necessidade de ação adicional\u003c/task\u003e\u003ccontext\u003eEvaluation e tomada de decisões\u003c/context\u003e\u003cconstraints\u003eAnálise dos resultados anteriores para determinar próxima etapa ou ajustes futuros\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-26T17:22:08.8395926Z",
+        "len":  83,
+        "raw":  "shelf tudo o que temos para não perdermos nada e vamos voltar para o changeset 5684",
+        "xml":  "\u003ctask\u003eVoltarmos a revisão anterior\u003c/task\u003e\u003ccontext\u003eAo invés disso, redefinamos nossa abordagem geral.\u003c/context\u003e\u003cconstraints\u003ePriorizar aprendizado sobre perfeição em um único ponto específico do código. Revisões anteriores são úteis como referência histórica; devemos aprender com elas sem ficar preso nelas.\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-18T01:11:18.0925609Z",
+        "len":  42,
+        "raw":  "pesquise outras abordagens para novas PoCs",
+        "xml":  "\u003ctask\u003ePesquisar alternativas para nova Proof of Concept\u003c/task\u003e\u003ccontext\u003eFerramenta pesquisa, ideias inovadoras\u003c/context\u003e\u003cconstraints\u003eBibliotecas open-source, frameworks emergentes, tendências em tecnologia atualizada\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-17T21:04:03.5528187Z",
+        "len":  63,
+        "raw":  "a opção de Targets não seria Hidden no editor, e sim visibility",
+        "xml":  "\u003ctask\u003eAjustar visibilidade dos targets em edição\u003c/task\u003e\u003ccontext\u003eEstrutura de dados, Edição Intelektual\u003c/context\u003e\u003cconstraints\u003eHabilitação/Deshabilitação visualização por padrões ou categorias específicas\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-24T20:13:39.3233696Z",
+        "len":  38,
+        "raw":  "vamos continuar com o visual companion",
+        "xml":  "\u003ctask\u003eCriar modelo de visão para compostação em tempo real\u003c/task\u003e\u003ccontext\u003ePiloto automotivo, Inteligência Artificial, Visão Computacional\u003c/context\u003e\u003cconstraints\u003eDeteccao de objetos, localização precisa dos componentes, sincronia entre câmera e motorista\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-17T18:30:50.4373418Z",
+        "len":  78,
+        "raw":  "Explicação aceita. E um dropdown selecionável como se fosse o de um enum-flag?",
+        "xml":  "\u003ctask\u003eCriar componente dropdown seleção múltipla sem flag-enum\u003c/task\u003e\u003ccontext\u003eFrontend, UI componentes\u003c/context\u003e\u003cconstraints\u003euso de array ou lista para opções, evento onChange com valor atualizado, layout responsivo e acessibilidade\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-18T00:59:46.4837516Z",
+        "len":  89,
+        "raw":  "os que não são graph sempre vão ter problemas de espaço, vamos avançar no estudo do graph",
+        "xml":  "\u003ctask\u003eAprofundamento em estruturas de dados Graphs\u003c/task\u003e\u003ccontext\u003eEstrutura de Dados, Teoria Computacional\u003c/context\u003e\u003cconstraints\u003eMétodos para representação eficiente, algoritmos de busca e caminhada, propriedades topológicas importantes\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-14T23:46:50.9113869Z",
+        "len":  34,
+        "raw":  "tem um push, mas não tem pr aberto",
+        "xml":  "\u003ctask\u003ePriorizar solicitação sem PR aberta\u003c/task\u003e\u003ccontext\u003eGerrit/ GitLab/Github\u003c/context\u003e\u003cconstraints\u003eAjustar prioridade e reavaliar métricas de contribuição\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-19T00:56:02.6558636Z",
+        "len":  67,
+        "raw":  "ExamMembership Exam precisa ser flag para  permitir escolher vários",
+        "xml":  "\u003ctask\u003eMudar propriedade Examen Membership em booleano para múltiplo\u003c/task\u003e\u003ccontext\u003eBanco relacional, alteração estrutura de dados\u003c/context\u003e\u003cconstraints\u003eCriar tabela auxiliar ou campo separado se necessário, garantia integridade dos dados\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-22T19:35:51.3385257Z",
+        "len":  53,
+        "raw":  "Limpe os debug logs desnecessários e liste os commits",
+        "xml":  "\u003ctask\u003eLimpar log de depuração excessivo\u003c/task\u003e\u003ccontext\u003eSistema operacional/Linux/Windows/MacOS\u003c/context\u003e\u003cconstraints\u003eFerramentas como grep, sed, find para busca eficiente; uso da ferramenta `git` com comando `log --oneline` ou similar para lista rápida dos últimos commit\u0027s.\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-14T13:11:54.2203232Z",
+        "len":  33,
+        "raw":  "quero implementar cache LRU em Go",
+        "xml":  "\u003ctask\u003eCriar um Cache LRU no Golang\u003c/task\u003e\u003ccontext\u003eGoroutine seguro e escalável para uso em aplicativos web ou microserviços.\u003c/context\u003e\u003cconstraints\u003eEstrutura de dados cachê que evita a sobrecarga com o tempo. Implementação thread-safe usando mutexes sem bloqueio por acesso aos campos do struct.\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-25T11:32:27.8247779Z",
+        "len":  128,
+        "raw":  "RASCALSkinnedMeshCollider.cs, RascalExtensions.cs   não vão\nTooltipGradientRenderPass*.mat não vai\no resto está ok\nfaça o commit",
+        "xml":  "\u003ctask\u003eFazer commit sem arquivos específicos mencionados anteriormente\u003c/task\u003e\u003ccontext\u003eGerrit/ GitLab/CiCD\u003c/context\u003e\u003cconstraints\u003eOmitir files: RaskellSkin* mat\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-25T17:51:36.9568278Z",
+        "len":  103,
+        "raw":  "objetos com ExamMembership sem exames selecionados ainda estão invisíveis, eles deveriam estar visíveis",
+        "xml":  "\u003ctask\u003eMostrar objetos não avaliados em lista examinada\u003c/task\u003e\u003ccontext\u003eEstrutura de dados, visualização de resultados\u003c/context\u003e\u003cconstraints\u003eFiltro por estado ou atributo para mostrar apenas os que precisam ser avaliados novamente\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-25T20:37:24.1671056Z",
+        "len":  187,
+        "raw":  "Estou fazendo um experimento com o InteractiveExamManager carregando os exames a partir de prefabs, porém, ao iniciar o measure exam os botões para interação não apareceram ExamMembership",
+        "xml":  "\u003ctask\u003eFazer Exemplo: Botões de Interatividade em Measure Exam Não Aparecem após Carregar Prefab de Exame\u003c/task\u003e\u003ccontext\u003eXamarin.Forms, UWP/WinUI, Behavior Bindings e Eventos\u003c/context\u003e\u003cconstraints\u003eCriar evento ou bindig do estado da questão no prefab, atualizar layout quando ocorre mudança na propriedade \"IsInteractive\" dos objetos de Questao\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-26T00:51:42.0179744Z",
+        "len":  207,
+        "raw":  "O controller precisa inicializar o que está no Awake de InteractiveMeasureTape sob o risco de dar null reference, inclusive alguns pontos nem precisem de DI já que os dois objetos fazem parte de um só prefab",
+        "xml":  "\u003ctask\u003eCriar inicialização segura para InteractiveMeasureTape em Controller\u003c/task\u003e\u003ccontext\u003eMVC .NET Core, injeção de dependência (DI)\u003c/context\u003e\u003cconstraints\u003eOtimizar uso do Dispose e garantir não criar NULReferenceException durante a execução da aplicação\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-22T12:33:52.2750541Z",
+        "len":  105,
+        "raw":  "liste os itens para o commit. Em caso de descarte, primeiro use o shelf, depois deletamos caso necessário",
+        "xml":  "\u003ctask\u003eCriar lista de itens para commit\u003c/task\u003e\u003ccontext\u003eGerrit/ GitLab CI/CD\u003c/context\u003e\u003cconstraints\u003ePrioridade alta: backup dos dados no shelf; prioridade média: remover item desnecessário do código;\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-22T13:07:32.8395188Z",
+        "len":  161,
+        "raw":  "Em AutoHandSimulatorUIInteraction a interação com UI parece estar executando todos os controles em que o raycast atinge e isso está causando problemas, verifique",
+        "xml":  "\u003ctask\u003eAnalisar problema específico na execução dos controles no AutoHandSimulatorUIInteraction\u003c/task\u003e\u003ccontext\u003eC#/.NET, Unity, Raycasting\u003c/context\u003e\u003cconstraints\u003eFiltragem do hit detection para reduzir número de controles processados simultaneamente, possíveis otimizações nos métodos de atualização da interface\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-23T15:11:58.3908763Z",
+        "len":  141,
+        "raw":  "ToggleEventButton não está disparando o evento ou o evento está incorreto ou alguma outra razão para o evento não estar chegando corretamente",
+        "xml":  "\u003ctask\u003eAnalisar problema com ToggleEventButton e eventos\u003c/task\u003e\u003ccontext\u003eC#/.NET, UI Componentes, Eventos\u003c/context\u003e\u003cconstraints\u003ePossíveis causas: bind incorrecto do evento, estado inicial errático da toggle button, bloqueio no thread principal durante a execução do evento\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-18T17:38:59.7962001Z",
+        "len":  233,
+        "raw":  "voltando para a implementação e migração.\nExamProfile Visibility Rules e as outras Rules recebem uma lista de Memberships e possui e possui uma lista de regras, então todos os elementos dentro das rules atendem àquela lista de regras",
+        "xml":  "\u003ctask\u003eMapear memberships em rule visibility\u003c/task\u003e\u003ccontext\u003eDados relacionais banco de dados, integridade dos dados\u003c/context\u003e\u003cconstraints\u003eCriptografia hash membership list com cada regulação única, garantir que todas as regras sejam aplicadas corretamente aos membros da lista\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-14T17:09:27.7527992Z",
+        "len":  422,
+        "raw":  "Assets\\Scripts\\Devtools\\Editor\\AudioCreator.cs(10,29): error CS0234: The type or namespace name \u0027HighDefinition\u0027 does not exist in the namespace \u0027UnityEngine.Rendering\u0027 (are you missing an assembly reference?)\n\nAssets\\Scripts\\Devtools\\Editor\\DialogueCreator.cs(9,29): error CS0234: The type or namespace name \u0027HighDefinition\u0027 does not exist in the namespace \u0027UnityEngine.Rendering\u0027 (are you missing an assembly reference?)",
+        "xml":  "\u003ctask\u003eOcorreência do erro HighDefinition não encontrado em UnityEngine(Rendering)\u003c/task\u003e\u003ccontext\u003eUnity C#, desenvolvimento de jogos\u003c/context\u003e\u003cconstraints\u003ePossível solução: adicionar referência à biblioteca Unity Rendering ou usar alias para o nome espelho \"Rendering\"\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-26T23:00:22.8172758Z",
+        "len":  547,
+        "raw":  "NullReferenceException: Object reference not set to an instance of an object\nInteractiveMeasureTape_Body.UpdateUI () (at Assets/Scripts/InteractiveObjects/InteractiveMeasureTape_Body.cs:137)\nInteractiveMeasureTape_Body.UpdateDisplayValue () (at Assets/Scripts/InteractiveObjects/InteractiveMeasureTape_Body.cs:128)\nInteractiveMeasureTape_Body.UpdateAnimation () (at Assets/Scripts/InteractiveObjects/InteractiveMeasureTape_Body.cs:101)\nInteractiveMeasureTape_Body.Update () (at Assets/Scripts/Interac",
+        "xml":  "\u003ctask\u003eResolver NullReferenceException em Interactive Measure Tape Body\u003c/task\u003e\u003ccontext\u003eC#/.NET, Unity, exceção de referência nula\u003c/context\u003e\u003cconstraints\u003eAnálise do código para identificar a causa raiz da exceção e implementar correções necessárias\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-26T16:27:14.8202468Z",
+        "len":  445,
+        "raw":  "Assets\\Scripts\\UI\\MainUIController.cs(193,51): error CS1061: \u0027ProgressIndicator\u0027 does not contain a definition for \u0027progressValue\u0027 and no accessible extension method \u0027progressValue\u0027 accepting a first argument of type \u0027ProgressIndicator\u0027 could be found (are you missing a using directive or an assembly reference?)\n\nAssets\\Scripts\\UI\\ProgressIndicator.cs(110,13): error CS8070: Control cannot fall out of switch from final case label (\u0027default:\u0027)",
+        "xml":  "\u003ctask\u003eFerramenta para debugar erros em C# e Unity\u003c/task\u003e\u003ccontext\u003eUnity Editor, Visual Studio Code ou outra IDE de desenvolvimento\u003c/context\u003e\u003cconstraints\u003eCriar um log detalhado dos erros com linhas de código relevantes, sugerir atualizações do compilador ou bibliotecas utilizadas.\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-17T18:36:22.5503337Z",
+        "len":  351,
+        "raw":  "Sim!\nAgora nos filtros, ao invés de termos \u0027allowed\u0027 o que implicaria também ter \u0027not allowed\u0027 e \u0027must be on\u0027 implicando o \u0027must be off\u0027, o que aumenta a quantidade de dropdowns e torna o trabalho visualmente mais complexo, cada eixo já teria duas opções (estados) ou até mais caso necessário, o que simplificaria e reduziria a quantidade de dropdowns",
+        "xml":  "\u003ctask\u003eAjustar interface para melhor experiência do usuário com menos combinações\u003c/task\u003e\u003ccontext\u003eDesenvolvimento UI/UX, otimização da interação humana-máquina\u003c/context\u003e\u003cconstraints\u003esimplificação das configurações por meio de categorias binárias em vez de estados múltiplos, reorganizar as opções dos menus desplegáveis\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-14T21:18:23.9335613Z",
+        "len":  683,
+        "raw":  "PS C:\\Projetos\\KeepWindowsProcessClear\u003e c \"qual é a nossa próxima tarefa na lista?\"\n--- refinando input (prompt-refiner) ---\n(refiner sem saida util - usando input cru)\n--- destilando prompt local (prompt-opt) ---\nERRO: saida do otimizador sem XML valido (\u003ctask\u003e\u003ccontext\u003e\u003cconstraints\u003e).\n--- saida bruta ---\nNão há uma próxima tarefa definida. A última entrada foi \"solicitar escopo, stack, objetivo concreto antes de proposer solução\". Se você quiser realizar outra tarefa ou precisar de ajuda com al",
+        "xml":  "\u003ctask\u003ePergunta sobre próximo passo\u003c/task\u003e\u003ccontext\u003eCriativo/ajudante\u003c/context\u003e\u003cconstraints\u003eRepetir a pergunta sem mudança significativa\u003c/.constraints\u003e\u003c/constraints\u003e",
+        "cached":  false
+    },
+    {
+        "id":  "2026-05-26T20:58:19.5384695Z",
+        "len":  346,
+        "raw":  "Problem detected while importing the Prefab file: \u0027Assets/Prefabs/UI/ExamsUI/PatientIconsCanvas.prefab\u0027.\nThe file might be corrupt or have a missing Variant parent or nested Prefabs. See details below.\nErrors:\n    Nested Prefab problem. Missing Nested Prefab Asset: \u0027ProgressIndicator (Missing Prefab with guid: 1e53caa8b0e3f7c4d9802f8fe3f52ed1)\u0027",
+        "xml":  "\u003ctask\u003eFerramenta Unity detectou problema com prefab UI Exames e sugeriu solução\u003c/task\u003e\u003ccontext\u003eUnity, importação de prefabs, erro de layout\u003c/context\u003e\u003cconstraints\u003ePrefabrizar o componente ProgressIndicator ou substituir por um outro componentes alternativos\u003c/constraints\u003e",
+        "cached":  false
+    }
+]
