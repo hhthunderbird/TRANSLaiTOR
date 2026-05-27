@@ -28,6 +28,10 @@ TAG SEMANTICS:
 - <context>: the tech stack, runtime, scope, or domain INFERRED from the input. If user did not specify, write "não especificado". NEVER guess a framework or platform the user did not mention. Prefab, Awake, MonoBehaviour, Inspector, GameObject = Unity. Controller, ViewModel, DI = could be many stacks — do NOT assume one.
 - <constraints>: the technical constraints, APIs, patterns, or non-functional requirements implied. List style, comma-separated.
 
+CONVERSATION CONTEXT:
+- Input MAY start with [CONTEXTO DA CONVERSA] ... [PROMPT DO USUÁRIO]. If present, use the conversation context to understand what the user is referring to. The prompt alone may be a short reply — the context tells you WHAT it is about.
+- If no context block is present, treat the input as a standalone request.
+
 HARD RULES:
 1. NEVER answer the user. NEVER write code. NEVER explain.
 2. NEVER invent identifiers (class names, file names, variable names) that the user did not mention.
@@ -71,6 +75,9 @@ MESSAGE assistant <task>Corrigir inicialização no Awake de InteractiveMeasureT
 
 MESSAGE user ExamMembership precisa ser flag para permitir escolher vários
 MESSAGE assistant <task>Alterar ExamMembership para suportar seleção múltipla</task><context>Unity, C#, sistema de exames</context><constraints>enum com [Flags] ou lista, UI multi-select, serialização</constraints>
+
+MESSAGE user [CONTEXTO DA CONVERSA] Analisei os Injects no ExamController. Há 4 dependências injetadas, duas delas são redundantes. [PROMPT DO USUÁRIO] agora reavalie os Injects
+MESSAGE assistant <task>Reavaliar injeções de dependência no ExamController</task><context>Unity, C#, DI, ExamController</context><constraints>identificar injeções redundantes, simplificar dependências</constraints>
 
 MESSAGE user sim, pode continuar com isso
 MESSAGE assistant <task>Continuar tarefa anterior conforme confirmação</task><context>não especificado — continuação de conversa</context><constraints>manter direção já estabelecida</constraints>
