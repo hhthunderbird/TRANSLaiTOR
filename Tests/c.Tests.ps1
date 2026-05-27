@@ -74,8 +74,10 @@ Describe 'c.ps1 with no prompt (clipboard mode)' {
 
             $prevHome = $env:USERPROFILE
             $prevClip = $env:CPROMPT_TEST_CLIPBOARD
+            $prevClipOverride = $env:CPROMPT_CLIPBOARD_OVERRIDE
             try {
                 $env:USERPROFILE = $IsolatedHome
+                $env:CPROMPT_CLIPBOARD_OVERRIDE = '1'
                 $env:CPROMPT_TEST_CLIPBOARD = $ClipboardText
                 $tmpOut = [System.IO.Path]::GetTempFileName()
                 $tmpErr = "$tmpOut.err"
@@ -90,6 +92,7 @@ Describe 'c.ps1 with no prompt (clipboard mode)' {
             } finally {
                 $env:USERPROFILE = $prevHome
                 $env:CPROMPT_TEST_CLIPBOARD = $prevClip
+                $env:CPROMPT_CLIPBOARD_OVERRIDE = $prevClipOverride
             }
             return [pscustomobject]@{ ExitCode = $exit; StdOut = $stdout }
         }

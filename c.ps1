@@ -26,7 +26,9 @@ function Show-Usage {
     @"
 TRANSLaiTOR - local prompt compiler
 
-uso:  c <ideia>                  distila e copia XML para clipboard
+uso:  c                          le clipboard, mostra preview, Enter/Esc
+      c -Raw                     le clipboard direto, sem prompt
+      c <ideia>                  destila e copia XML para clipboard
       c <ideia> -Raw             imprime XML em stdout (implica -NoRefine)
       c <ideia> -Send            envia XML direto para claude -p
       c <ideia> -Model X         usa modelo Ollama compilador diferente (default: prompt-opt)
@@ -76,6 +78,44 @@ if ($Last) {
 }
 
 $userInput = if ($Prompt) { ($Prompt -join ' ').Trim() } else { '' }
+
+if (-not $userInput) {
+    if ($env:CPROMPT_CLIPBOARD_OVERRIDE) {
+        $clipText = if ($env:CPROMPT_TEST_CLIPBOARD) { $env:CPROMPT_TEST_CLIPBOARD } else { '' }
+    } else {
+        $clipText = (Get-Clipboard -Raw)
+    }
+    if (-not $clipText) {
+        Write-Host "ERRO: clipboard vazio ou sem texto." -ForegroundColor Red
+        exit 1
+    }
+
+    $clipLines = $clipText -split "`n"
+    $clipChars = $clipText.Length
+    $clipLineCount = $clipLines.Count
+    Write-Host "[clipboard: $clipChars chars, $clipLineCount linhas]" -ForegroundColor DarkCyan
+
+    $skipPrompt = $Raw -or [Console]::IsInputRedirected
+    if (-not $skipPrompt) {
+        $previewCount = [Math]::Min(5, $clipLines.Count)
+        for ($i = 0; $i -lt $previewCount; $i++) {
+            Write-Host "  $($clipLines[$i])" -ForegroundColor DarkGray
+        }
+        if ($clipLines.Count -gt 5) {
+            $remaining = $clipLines.Count - 5
+            Write-Host "  ...($remaining mais)" -ForegroundColor DarkGray
+        }
+        Write-Host "Enter=usar, Esc=cancelar" -ForegroundColor Yellow
+        $key = [Console]::ReadKey($true)
+        if ($key.Key -eq 'Escape') {
+            Write-Host "cancelado." -ForegroundColor DarkGray
+            exit 0
+        }
+    }
+
+    $userInput = $clipText
+}
+
 if (-not (Test-InputAcceptable -Text $userInput -MaxLength $script:MaxInputChars)) {
     if (-not $userInput) {
         Show-Usage
