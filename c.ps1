@@ -220,8 +220,13 @@ if (-not $skipRefiner) {
         $ErrorActionPreference = 'Continue'
         $refinerRaw = ''
         $refinerWatch = [System.Diagnostics.Stopwatch]::StartNew()
+        $spinIdx = 0
+        $spinChars = [char[]]@(0x280B, 0x2819, 0x2839, 0x2838, 0x283C, 0x2834, 0x2826, 0x2827, 0x2807, 0x280F)
+        $tickCb = if (-not $Raw) {
+            { $elapsed = [math]::Round($refinerWatch.Elapsed.TotalSeconds, 1); Write-Host "`r  $($spinChars[$spinIdx % $spinChars.Count]) ${elapsed}s " -NoNewline -ForegroundColor DarkGray; $script:spinIdx++ }.GetNewClosure()
+        } else { $null }
         try {
-            $refinerResult = Invoke-OllamaModel -Text $userInput -Model $RefinerModel -CaptureStats
+            $refinerResult = Invoke-OllamaModel -Text $userInput -Model $RefinerModel -CaptureStats -OnTick $tickCb
             $refinerRaw    = [string]$refinerResult.Text
             $refinerStats  = $refinerResult.Stats
         } catch {
@@ -229,6 +234,7 @@ if (-not $skipRefiner) {
         }
         $refinerWatch.Stop()
         $refinerMs = [int]$refinerWatch.ElapsedMilliseconds
+        if (-not $Raw) { Write-Host "`r  done (${refinerMs}ms)       " -ForegroundColor DarkGray }
         $ErrorActionPreference = $prevEAP
 
         $parsed = $null
@@ -306,8 +312,13 @@ if (-not $xml) {
     if ($ConversationContext) {
         $compilerInput = "[CONTEXTO DA CONVERSA]`n$ConversationContext`n[PROMPT DO USUÁRIO]`n$userInput"
     }
+    $spinIdx = 0
+    $spinChars = [char[]]@(0x280B, 0x2819, 0x2839, 0x2838, 0x283C, 0x2834, 0x2826, 0x2827, 0x2807, 0x280F)
+    $tickCb = if (-not $Raw) {
+        { $elapsed = [math]::Round($compilerWatch.Elapsed.TotalSeconds, 1); Write-Host "`r  $($spinChars[$spinIdx % $spinChars.Count]) ${elapsed}s " -NoNewline -ForegroundColor DarkGray; $script:spinIdx++ }.GetNewClosure()
+    } else { $null }
     try {
-        $compilerResult = Invoke-OllamaModel -Text $compilerInput -Model $Model -CaptureStats
+        $compilerResult = Invoke-OllamaModel -Text $compilerInput -Model $Model -CaptureStats -OnTick $tickCb
         $ollamaOutput   = [string]$compilerResult.Text
         $compilerStats  = $compilerResult.Stats
     } catch {
@@ -318,6 +329,7 @@ if (-not $xml) {
     }
     $compilerWatch.Stop()
     $compilerMs = [int]$compilerWatch.ElapsedMilliseconds
+    if (-not $Raw) { Write-Host "`r  done (${compilerMs}ms)       " -ForegroundColor DarkGray }
     $ErrorActionPreference = $prevEAP
 
     if ($LASTEXITCODE -ne 0) {

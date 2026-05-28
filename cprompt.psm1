@@ -148,7 +148,8 @@ function Invoke-OllamaModel {
     param(
         [Parameter(Mandatory)][string]$Text,
         [Parameter(Mandatory)][string]$Model,
-        [switch]$CaptureStats
+        [switch]$CaptureStats,
+        [scriptblock]$OnTick
     )
 
     if (-not $CaptureStats) {
@@ -199,7 +200,14 @@ function Invoke-OllamaModel {
         $p.StandardInput.Write($Text)
         $p.StandardInput.Close()
 
-        $p.WaitForExit()
+        if ($OnTick) {
+            while (-not $p.HasExited) {
+                Start-Sleep -Milliseconds 200
+                try { & $OnTick } catch {}
+            }
+        } else {
+            $p.WaitForExit()
+        }
         $stdout = $outTask.GetAwaiter().GetResult()
         $stderr = $errTask.GetAwaiter().GetResult()
 
