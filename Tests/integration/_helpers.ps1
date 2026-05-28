@@ -8,7 +8,8 @@ function Invoke-CIntegration {
         [Parameter(Mandatory)][string]$Fixture,
         [string[]]$Args = @(),
         [string[]]$Stubs = @('ollama'),
-        [string]$StdIn = ''
+        [string]$StdIn = '',
+        [switch]$CaptureStdin
     )
 
     # Stage requested stubs into per-test bin dir.
@@ -33,10 +34,19 @@ function Invoke-CIntegration {
     $stdErrTmp = Join-Path $TestDrive 'stderr.txt'
     Set-Content -LiteralPath $stdInTmp -Value $StdIn -Encoding UTF8 -NoNewline
 
+    # Optional stdin capture: when caller sets $CaptureStdin (true), the stub
+    # appends each invocation's stdin to a file we return as .StdInCapture.
+    $captureStdinPath = $null
+    if ($PSBoundParameters.ContainsKey('CaptureStdin') -and $CaptureStdin) {
+        $captureStdinPath = Join-Path $TestDrive 'stub-stdin.txt'
+        if (Test-Path $captureStdinPath) { Remove-Item -LiteralPath $captureStdinPath -Force }
+    }
+
     $savedPath = $env:Path
     $savedFixture = $env:CPROMPT_TEST_FIXTURE
     $savedInv = $env:CPROMPT_TEST_INVOCATIONS
     $savedRoot = $env:CPROMPT_STATE_ROOT
+    $savedCap = $env:CPROMPT_TEST_CAPTURE_STDIN
     try {
         # Minimal isolated PATH: stubs first, then only OS essentials so child
         # powershell.exe, cmd.exe, and Set-Clipboard can be found, but no
@@ -45,6 +55,7 @@ function Invoke-CIntegration {
         $env:CPROMPT_TEST_FIXTURE = $Fixture
         $env:CPROMPT_TEST_INVOCATIONS = $invocationsPath
         $env:CPROMPT_STATE_ROOT = $stateRoot
+        if ($captureStdinPath) { $env:CPROMPT_TEST_CAPTURE_STDIN = $captureStdinPath }
 
         $psArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $RepoRoot 'c.ps1')) + $Args
         $p = Start-Process -FilePath 'powershell.exe' -ArgumentList $psArgs `
@@ -57,6 +68,7 @@ function Invoke-CIntegration {
         if ($null -ne $savedFixture) { $env:CPROMPT_TEST_FIXTURE = $savedFixture } else { Remove-Item Env:\CPROMPT_TEST_FIXTURE -ErrorAction SilentlyContinue }
         if ($null -ne $savedInv) { $env:CPROMPT_TEST_INVOCATIONS = $savedInv } else { Remove-Item Env:\CPROMPT_TEST_INVOCATIONS -ErrorAction SilentlyContinue }
         if ($null -ne $savedRoot) { $env:CPROMPT_STATE_ROOT = $savedRoot } else { Remove-Item Env:\CPROMPT_STATE_ROOT -ErrorAction SilentlyContinue }
+        if ($null -ne $savedCap) { $env:CPROMPT_TEST_CAPTURE_STDIN = $savedCap } else { Remove-Item Env:\CPROMPT_TEST_CAPTURE_STDIN -ErrorAction SilentlyContinue }
     }
 
     return [pscustomobject]@{
@@ -68,6 +80,7 @@ function Invoke-CIntegration {
         HistoryPath  = Join-Path $stateRoot 'history.jsonl'
         CacheDir     = Join-Path $stateRoot 'cache'
         MetricsPath  = Join-Path $stateRoot 'metrics.jsonl'
+        StdInCapture = if ($captureStdinPath -and (Test-Path $captureStdinPath)) { Get-Content -LiteralPath $captureStdinPath -Raw -Encoding UTF8 } else { '' }
     }
 }
 

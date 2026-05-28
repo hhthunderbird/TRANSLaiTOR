@@ -2,7 +2,10 @@
 # parses model from $args, increments invocation counter, writes fixture payload.
 # Strict mode intentionally OFF — `@()[-1]` would throw under StrictMode Latest.
 
-[Console]::In.ReadToEnd() | Out-Null
+$stdin = [Console]::In.ReadToEnd()
+if ($env:CPROMPT_TEST_CAPTURE_STDIN) {
+    Add-Content -LiteralPath $env:CPROMPT_TEST_CAPTURE_STDIN -Value $stdin -Encoding UTF8 -NoNewline
+}
 
 $filtered = @($args | Where-Object { $_ -ne 'run' -and $_ -notlike '--*' })
 if ($filtered.Count -eq 0) {
