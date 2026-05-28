@@ -742,11 +742,23 @@ function Get-RefinerRegressions {
         $expected = [string]$case.expectedMode
         if ($expected -eq 'rejected') { continue }
 
+        # acceptableModes (optional). When present, hits sum across all listed
+        # modes. When absent, behaves exactly as before: acceptable = [expectedMode].
+        $acceptable = if ($case.PSObject.Properties['acceptableModes'] -and $case.acceptableModes) {
+            @($case.acceptableModes | ForEach-Object { [string]$_ })
+        } else {
+            @($expected)
+        }
+
         $baseTrials = [int]$case.trials
         if ($baseTrials -le 0) { continue }
 
-        $modeProp = $case.modeCounts.PSObject.Properties[$expected]
-        $baseHits = if ($modeProp) { [int]$modeProp.Value } else { 0 }
+        # Sum baseline hits across every acceptable mode.
+        $baseHits = 0
+        foreach ($m in $acceptable) {
+            $prop = $case.modeCounts.PSObject.Properties[$m]
+            if ($prop) { $baseHits += [int]$prop.Value }
+        }
         $baseRate = $baseHits / $baseTrials
 
         if (-not $FreshDistributions.ContainsKey($case.id)) {
@@ -772,7 +784,8 @@ function Get-RefinerRegressions {
             continue
         }
 
-        $freshHits = @($fresh | Where-Object { [string]$_.Mode -eq $expected }).Count
+        # Fresh hit = any trial whose mode is in the acceptable set.
+        $freshHits = @($fresh | Where-Object { [string]$_.Mode -in $acceptable }).Count
         $freshRate = $freshHits / $fresh.Count
         $drop      = $baseRate - $freshRate
 

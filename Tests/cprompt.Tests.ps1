@@ -876,6 +876,64 @@ Describe 'Get-RefinerRegressions' {
         $res.Count         | Should -Be 1
         [string]$res[0].id | Should -Be 'b'
     }
+
+    It 'sums baseline hits across acceptableModes and treats fresh hit in any acceptable mode as success' {
+        # Baseline case: borderline — modeCounts split 6 passthrough / 4 questions.
+        # expectedMode is passthrough, but acceptableModes accepts both.
+        $baselineCase = [pscustomobject]@{
+            id              = 'borderline-test'
+            input           = 'something borderline'
+            expectedMode    = 'passthrough'
+            acceptableModes = @('passthrough','questions')
+            trials          = 10
+            modeCounts      = [pscustomobject]@{
+                passthrough = 6
+                questions   = 4
+                invalid     = 0
+            }
+        }
+        # Fresh distribution: 10/10 questions — falls entirely outside expectedMode
+        # but fully inside acceptableModes. Must NOT be flagged as a regression.
+        $fresh = @{}
+        $fresh['borderline-test'] = 1..10 | ForEach-Object {
+            [pscustomobject]@{ Mode = 'questions'; QCount = 1 }
+        }
+
+        $failures = @(Get-RefinerRegressions `
+            -BaselineCases @($baselineCase) `
+            -FreshDistributions $fresh `
+            -DropThreshold 0.40)
+
+        $failures.Count | Should -Be 0
+    }
+
+    It 'flags regression when fresh distribution lands outside all acceptable modes' {
+        $baselineCase = [pscustomobject]@{
+            id              = 'borderline-flag'
+            input           = 'something borderline'
+            expectedMode    = 'passthrough'
+            acceptableModes = @('passthrough','questions')
+            trials          = 10
+            modeCounts      = [pscustomobject]@{
+                passthrough = 6
+                questions   = 4
+                invalid     = 0
+            }
+        }
+        # Fresh distribution: 10/10 invalid — outside every acceptable mode.
+        $fresh = @{}
+        $fresh['borderline-flag'] = 1..10 | ForEach-Object {
+            [pscustomobject]@{ Mode = 'invalid'; QCount = 0 }
+        }
+
+        $failures = @(Get-RefinerRegressions `
+            -BaselineCases @($baselineCase) `
+            -FreshDistributions $fresh `
+            -DropThreshold 0.40)
+
+        $failures.Count | Should -Be 1
+        $failures[0].id | Should -Be 'borderline-flag'
+    }
 }
 
 Describe 'ConvertFrom-OllamaVerboseStats' {
