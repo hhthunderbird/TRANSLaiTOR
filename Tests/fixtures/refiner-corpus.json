@@ -69,6 +69,36 @@
       "tags": ["camelcase", "concrete", "long-input", "pt"]
     },
     {
+      "id": "keyword-go-cache-lru-short",
+      "input": "quero implementar cache LRU em Go",
+      "expectedMode": "passthrough",
+      "tags": ["concrete", "stack-named", "pt"]
+    },
+    {
+      "id": "error-log-nullref-multi-frame",
+      "input": "NullReferenceException: Object reference not set to an instance of an object\nInteractiveMeasureTape_Body.UpdateUI () (at Assets/Scripts/InteractiveObjects/InteractiveMeasureTape_Body.cs:137)\nInteractiveMeasureTape_Body.UpdateDisplayValue () (at Assets/Scripts/InteractiveObjects/InteractiveMeasureTape_Body.cs:128)\nInteractiveMeasureTape_Body.UpdateAnimation () (at Assets/Scripts/InteractiveObjects/InteractiveMeasureTape_Body.cs:101)",
+      "expectedMode": "passthrough",
+      "tags": ["error-log", "stack-trace", "long-input", "concrete"]
+    },
+    {
+      "id": "error-log-cs1061",
+      "input": "Assets\\Scripts\\UI\\MainUIController.cs(193,51): error CS1061: 'ProgressIndicator' does not contain a definition for 'progressValue' and no accessible extension method 'progressValue' accepting a first argument of type 'ProgressIndicator' could be found (are you missing a using directive or an assembly reference?)",
+      "expectedMode": "passthrough",
+      "tags": ["error-log", "file-path", "concrete"]
+    },
+    {
+      "id": "git-cleanup-and-list",
+      "input": "Limpe os debug logs desnecessários e liste os commits",
+      "expectedMode": "passthrough",
+      "tags": ["git", "concrete", "pt"]
+    },
+    {
+      "id": "file-path-list-commit",
+      "input": "RASCALSkinnedMeshCollider.cs, RascalExtensions.cs   não vão\nTooltipGradientRenderPass*.mat não vai\no resto está ok\nfaça o commit",
+      "expectedMode": "passthrough",
+      "tags": ["file-path", "concrete", "pt"]
+    },
+    {
       "id": "zero-signal-short",
       "input": "ajuda",
       "expectedMode": "rejected",
