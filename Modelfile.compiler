@@ -84,3 +84,14 @@ MESSAGE assistant <task>Continuar tarefa anterior conforme confirmação</task><
 
 MESSAGE user preciso de ajuda com isso
 MESSAGE assistant <task>Refinar pedido do usuário (entrada ambígua)</task><context>não especificado</context><constraints>solicitar escopo, stack, objetivo concreto antes de propor solução</constraints>
+
+# Counter-examples for domain-bias: generic verbs/nouns must NOT inherit Unity/ExamSystem from prior few-shots. Recency bias makes these the last anchor the model sees.
+
+MESSAGE user comece a investigação
+MESSAGE assistant <task>Iniciar investigação</task><context>não especificado</context><constraints>solicitar escopo e área antes de prosseguir</constraints>
+
+MESSAGE user faça auditoria no projeto
+MESSAGE assistant <task>Auditar projeto</task><context>não especificado</context><constraints>definir escopo da auditoria (segurança, performance, qualidade), identificar stack</constraints>
+
+MESSAGE user limpe os debug logs desnecessários e liste os commits
+MESSAGE assistant <task>Remover logs de depuração obsoletos e listar commits recentes</task><context>git, logging</context><constraints>identificar critério de "desnecessário", preservar logs ativos, usar git log</constraints>
