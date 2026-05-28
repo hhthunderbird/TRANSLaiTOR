@@ -39,6 +39,36 @@
       "tags": ["vague", "scope-missing"]
     },
     {
+      "id": "camelcase-exam-membership-flag",
+      "input": "ExamMembership Exam precisa ser flag para  permitir escolher vários",
+      "expectedMode": "passthrough",
+      "tags": ["camelcase", "concrete", "pt"]
+    },
+    {
+      "id": "camelcase-toggle-event-button",
+      "input": "ToggleEventButton não está disparando o evento ou o evento está incorreto ou alguma outra razão para o evento não estar chegando corretamente",
+      "expectedMode": "passthrough",
+      "tags": ["camelcase", "concrete", "pt"]
+    },
+    {
+      "id": "camelcase-interactive-exam-manager-prefabs",
+      "input": "Estou fazendo um experimento com o InteractiveExamManager carregando os exames a partir de prefabs, porém, ao iniciar o measure exam os botões para interação não apareceram ExamMembership",
+      "expectedMode": "passthrough",
+      "tags": ["camelcase", "concrete", "long-input", "pt"]
+    },
+    {
+      "id": "camelcase-autohand-raycast",
+      "input": "Em AutoHandSimulatorUIInteraction a interação com UI parece estar executando todos os controles em que o raycast atinge e isso está causando problemas, verifique",
+      "expectedMode": "passthrough",
+      "tags": ["camelcase", "concrete", "long-input", "pt"]
+    },
+    {
+      "id": "camelcase-exam-profile-rules",
+      "input": "voltando para a implementação e migração.\nExamProfile Visibility Rules e as outras Rules recebem uma lista de Memberships e possui e possui uma lista de regras, então todos os elementos dentro das rules atendem àquela lista de regras",
+      "expectedMode": "passthrough",
+      "tags": ["camelcase", "concrete", "long-input", "pt"]
+    },
+    {
       "id": "zero-signal-short",
       "input": "ajuda",
       "expectedMode": "rejected",
