@@ -14,6 +14,9 @@ history/
 Thumbs.db
 .DS_Store
 
+# PowerShell leaked module cache
+Microsoft/
+
 # IDE
 .vscode/
 .idea/
