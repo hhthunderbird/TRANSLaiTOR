@@ -316,3 +316,43 @@ Describe 'c.ps1 eval stats captured in metrics entry' {
         $entry.refinerEval                    | Should -Not -BeNullOrEmpty
     }
 }
+
+Describe 'c.ps1 -ConversationContext' {
+    It 'wraps prior turn into [CONTEXTO DA CONVERSA] / [PROMPT DO USUÁRIO] before piping to compiler' {
+        # Single-token context value avoids the Start-Process / powershell.exe
+        # cmdline-quoting hell on Windows when both -ConversationContext and
+        # the trailing prompt would have whitespace. The wrapper logic itself
+        # doesn't care about the value's content.
+        $ctx = 'ContextMarker_AnalisedInjects'
+        $prompt = 'PromptMarker_ReavalueInjects'
+        $r = Invoke-CIntegration `
+            -TestDrive $TestDrive `
+            -RepoRoot $script:repoRoot `
+            -Fixture (Join-Path $script:fixtures 'compiler-valid-xml.json') `
+            -Args @('-NoRefine', '-Raw', '-ConversationContext', $ctx, $prompt) `
+            -CaptureStdin
+
+        $r.ExitCode    | Should -Be 0
+        $r.Invocations | Should -Be @('prompt-opt')
+        # The captured stdin is what c.ps1 actually piped into ollama. It MUST
+        # contain both the context block and the user prompt, in the exact
+        # wrapper format c.ps1 builds when -ConversationContext is non-empty.
+        $r.StdInCapture | Should -Match '\[CONTEXTO DA CONVERSA\]'
+        $r.StdInCapture | Should -Match ([regex]::Escape($ctx))
+        $r.StdInCapture | Should -Match '\[PROMPT DO USU.RIO\]'
+        $r.StdInCapture | Should -Match ([regex]::Escape($prompt))
+    }
+
+    It 'omits the context wrapper when -ConversationContext is empty/absent' {
+        $r = Invoke-CIntegration `
+            -TestDrive $TestDrive `
+            -RepoRoot $script:repoRoot `
+            -Fixture (Join-Path $script:fixtures 'compiler-valid-xml.json') `
+            -Args @('-NoRefine', '-Raw', 'sistema ecs unity') `
+            -CaptureStdin
+
+        $r.ExitCode      | Should -Be 0
+        $r.StdInCapture  | Should -Not -Match '\[CONTEXTO DA CONVERSA\]'
+        $r.StdInCapture  | Should -Match 'sistema ecs unity'
+    }
+}

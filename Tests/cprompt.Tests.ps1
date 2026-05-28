@@ -1065,6 +1065,65 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"%~dp0ollama-impl.ps1`"
     }
 }
 
+Describe 'New-OllamaTickCallback' {
+    BeforeAll {
+        # The callback uses Write-Host which routes through the Information
+        # stream (PS 5+). Redirect 6>&1 inside Invoke-Tick and pipe through
+        # Out-String so we get a plain string buffer to assert against,
+        # independent of mocking scope (the closure executes in the module's
+        # session state, which makes Mock -ModuleName unreliable here).
+        function script:Invoke-Tick {
+            param([scriptblock]$Cb)
+            $info = & $Cb 6>&1
+            return ($info | Out-String)
+        }
+    }
+
+    It 'returns a scriptblock' {
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        $cb = New-OllamaTickCallback -Watch $sw
+        $cb | Should -BeOfType [scriptblock]
+    }
+
+    It 'emits elapsed seconds in the spinner frame' {
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        Start-Sleep -Milliseconds 50
+        $cb = New-OllamaTickCallback -Watch $sw
+        $frame = Invoke-Tick $cb
+        # Frame format: "`r  <glyph> <secs>s "
+        $frame | Should -Match '\d+(\.\d+)?s'
+    }
+
+    It 'advances the spinner index across successive invocations' {
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        $cb = New-OllamaTickCallback -Watch $sw
+        $glyphs = @()
+        for ($i = 0; $i -lt 11; $i++) {
+            $frame = Invoke-Tick $cb
+            # First non-whitespace token after the leading \r is the glyph.
+            if ($frame -match '\s+(\S)\s') { $glyphs += $matches[1] }
+        }
+        # 10 distinct glyphs across ticks 0..9 — proves the index advances.
+        ($glyphs[0..9] | Select-Object -Unique).Count | Should -Be 10
+        # Tick 10 (Idx % 10 == 0) wraps back to the first glyph.
+        $glyphs[10] | Should -Be $glyphs[0]
+    }
+
+    It 'gives each callback its own independent state' {
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        $cb1 = New-OllamaTickCallback -Watch $sw
+        # Advance cb1 three times.
+        $null = Invoke-Tick $cb1; $null = Invoke-Tick $cb1; $null = Invoke-Tick $cb1
+        # Fresh cb2 must start at glyph 0, independent of cb1.
+        $cb2 = New-OllamaTickCallback -Watch $sw
+        $cb2Frame = Invoke-Tick $cb2
+        $cb1FourthFrame = Invoke-Tick $cb1
+        $cb2Glyph = if ($cb2Frame -match '\s+(\S)\s') { $matches[1] } else { '' }
+        $cb1Glyph = if ($cb1FourthFrame -match '\s+(\S)\s') { $matches[1] } else { '' }
+        # cb1 is on its 4th tick (Idx 3), cb2 is on its 1st (Idx 0) — different.
+        $cb2Glyph | Should -Not -Be $cb1Glyph
+    }
+}
 
 Describe 'Get-MetricsSummary with compilerEval entries' {
     It 'computes p50, p95 of evalRate and median of evalCount' {
