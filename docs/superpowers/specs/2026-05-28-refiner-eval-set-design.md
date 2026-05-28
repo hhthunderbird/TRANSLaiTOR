@@ -194,7 +194,7 @@ param(
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| `acceptableModes` is too permissive — borderline cases always pass, test loses signal | Medium | Test loses regression-detection power | Limit `acceptableModes` to 4-5 genuinely borderline cases; document `borderline` tag explicitly; reviewer-flag any case where both modes feel valid |
+| `acceptableModes` is too permissive — borderline cases always pass, test loses signal | Medium | Test loses regression-detection power | Limit `acceptableModes` to cases that meet ALL three criteria: (1) the input has no clear missing slot (refiner could plausibly say either "I have enough to passthrough" or "I'd ask one clarifying question"), (2) the probe in PR #48 actually saw the refiner pick the alternate mode at some run, (3) the case has the `borderline` tag in `tags`. Reviewer rejects PRs that add `acceptableModes` without all three. |
 | Single-run baseline snapshot freezes an atypical distribution | High | Future bench runs flag false-positive regressions | Use `Trials=20` for baseline (vs `10` for bench); the `DropThreshold=0.40` is wide enough to absorb normal variance |
 | 28 cases × 10 trials inflates bench time | Confirmed | Live bench grows from ~105s to ~250s | Already `-Tag 'Live'`; CI runs remain opt-in |
 | `Get-RefinerRegressions` back-compat break for existing 8 cases | Low | Existing cases fail regression after the change | Fallback `acceptable = @(expectedMode)` when field absent — covered by the existing 8 cases' regression test |
