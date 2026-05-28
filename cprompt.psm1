@@ -143,6 +143,22 @@ function Test-CommandPresent {
     return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
 }
 
+function New-OllamaTickCallback {
+    # Closure-based braille spinner callback for Invoke-OllamaModel -OnTick.
+    # Hashtable wraps the rotation index so the closure can mutate it across
+    # invocations (PowerShell closures snapshot scalars but capture object
+    # references). Extracted from c.ps1 to remove duplicated spinner blocks.
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][System.Diagnostics.Stopwatch]$Watch)
+    $chars = [char[]]@(0x280B, 0x2819, 0x2839, 0x2838, 0x283C, 0x2834, 0x2826, 0x2827, 0x2807, 0x280F)
+    $state = @{ Idx = 0 }
+    return {
+        $elapsed = [math]::Round($Watch.Elapsed.TotalSeconds, 1)
+        Write-Host "`r  $($chars[$state.Idx % $chars.Length]) ${elapsed}s " -NoNewline -ForegroundColor DarkGray
+        $state.Idx++
+    }.GetNewClosure()
+}
+
 function Invoke-OllamaModel {
     [CmdletBinding()]
     param(
@@ -870,6 +886,7 @@ Export-ModuleMember -Function `
     Resolve-Tool, `
     Test-CommandPresent, `
     Invoke-OllamaModel, `
+    New-OllamaTickCallback, `
     Test-InputAcceptable, `
     Test-InputIsZeroSignal, `
     Test-InputIsMetaQuery, `

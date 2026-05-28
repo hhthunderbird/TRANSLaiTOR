@@ -179,7 +179,6 @@ if (-not $skipRefiner -and (Test-InputIsZeroSignal -Text $userInput)) {
 # Meta-query stage: detect status/conversational queries and build synthetic XML
 # from project context instead of sending to the LLM compiler.
 $skipCompiler = $false
-$contextGatherMs = 0
 if ($MetaQuery -or (Test-InputIsMetaQuery -Text $userInput)) {
     if (-not $Raw) {
         Write-Host "--- consulta de status detectada ---" -ForegroundColor DarkCyan
@@ -220,11 +219,7 @@ if (-not $skipRefiner) {
         $ErrorActionPreference = 'Continue'
         $refinerRaw = ''
         $refinerWatch = [System.Diagnostics.Stopwatch]::StartNew()
-        $spinIdx = 0
-        $spinChars = [char[]]@(0x280B, 0x2819, 0x2839, 0x2838, 0x283C, 0x2834, 0x2826, 0x2827, 0x2807, 0x280F)
-        $tickCb = if (-not $Raw) {
-            { $elapsed = [math]::Round($refinerWatch.Elapsed.TotalSeconds, 1); Write-Host "`r  $($spinChars[$spinIdx % $spinChars.Count]) ${elapsed}s " -NoNewline -ForegroundColor DarkGray; $script:spinIdx++ }.GetNewClosure()
-        } else { $null }
+        $tickCb = if (-not $Raw) { New-OllamaTickCallback -Watch $refinerWatch } else { $null }
         try {
             $refinerResult = Invoke-OllamaModel -Text $userInput -Model $RefinerModel -CaptureStats -OnTick $tickCb
             $refinerRaw    = [string]$refinerResult.Text
@@ -275,82 +270,78 @@ if (-not $skipRefiner) {
 }
 
 if (-not $skipCompiler) {
-$cacheKey = Get-CacheKey -Model $Model -Text $userInput
+    $cacheKey = Get-CacheKey -Model $Model -Text $userInput
 
-if (-not $NoCache) {
-    $cached = Get-CachedXml -Key $cacheKey -CacheDir $script:CacheDir
-    if ($cached) {
-        $xml = $cached
-        $fromCache = $true
-        $metricMode = 'cache'
-        if (-not $Raw) {
-            Write-Host "--- cache hit ($Model) ---" -ForegroundColor DarkGreen
+    if (-not $NoCache) {
+        $cached = Get-CachedXml -Key $cacheKey -CacheDir $script:CacheDir
+        if ($cached) {
+            $xml = $cached
+            $fromCache = $true
+            $metricMode = 'cache'
+            if (-not $Raw) {
+                Write-Host "--- cache hit ($Model) ---" -ForegroundColor DarkGreen
+            }
         }
     }
-}
 
-if (-not $xml) {
-    if ($null -eq $ollamaPresent) {
-        try { $null = Resolve-Tool 'ollama'; $ollamaPresent = $true } catch { $ollamaPresent = $false }
-    }
-    if (-not $ollamaPresent) {
-        Write-Host "ERRO: ollama nao encontrado no PATH." -ForegroundColor Red
-        exit 2
-    }
+    if (-not $xml) {
+        if ($null -eq $ollamaPresent) {
+            try { $null = Resolve-Tool 'ollama'; $ollamaPresent = $true } catch { $ollamaPresent = $false }
+        }
+        if (-not $ollamaPresent) {
+            Write-Host "ERRO: ollama nao encontrado no PATH." -ForegroundColor Red
+            exit 2
+        }
 
-    if (-not $Raw) {
-        Write-Host "--- destilando prompt local ($Model) ---" -ForegroundColor Cyan
-    }
+        if (-not $Raw) {
+            Write-Host "--- destilando prompt local ($Model) ---" -ForegroundColor Cyan
+        }
 
-    # Pipe stdin to ollama. Suppress spinner stderr (TTY escapes). Don't let
-    # native-cmd stderr trip $ErrorActionPreference=Stop.
-    $prevEAP = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    $ollamaOutput = ''
-    $compilerWatch = [System.Diagnostics.Stopwatch]::StartNew()
-    $compilerInput = $userInput
-    if ($ConversationContext) {
-        $compilerInput = "[CONTEXTO DA CONVERSA]`n$ConversationContext`n[PROMPT DO USUÁRIO]`n$userInput"
-    }
-    $spinIdx = 0
-    $spinChars = [char[]]@(0x280B, 0x2819, 0x2839, 0x2838, 0x283C, 0x2834, 0x2826, 0x2827, 0x2807, 0x280F)
-    $tickCb = if (-not $Raw) {
-        { $elapsed = [math]::Round($compilerWatch.Elapsed.TotalSeconds, 1); Write-Host "`r  $($spinChars[$spinIdx % $spinChars.Count]) ${elapsed}s " -NoNewline -ForegroundColor DarkGray; $script:spinIdx++ }.GetNewClosure()
-    } else { $null }
-    try {
-        $compilerResult = Invoke-OllamaModel -Text $compilerInput -Model $Model -CaptureStats -OnTick $tickCb
-        $ollamaOutput   = [string]$compilerResult.Text
-        $compilerStats  = $compilerResult.Stats
-    } catch {
+        # Pipe stdin to ollama. Suppress spinner stderr (TTY escapes). Don't let
+        # native-cmd stderr trip $ErrorActionPreference=Stop.
+        $prevEAP = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        $ollamaOutput = ''
+        $compilerWatch = [System.Diagnostics.Stopwatch]::StartNew()
+        $compilerInput = $userInput
+        if ($ConversationContext) {
+            $compilerInput = "[CONTEXTO DA CONVERSA]`n$ConversationContext`n[PROMPT DO USUÁRIO]`n$userInput"
+        }
+        $tickCb = if (-not $Raw) { New-OllamaTickCallback -Watch $compilerWatch } else { $null }
+        try {
+            $compilerResult = Invoke-OllamaModel -Text $compilerInput -Model $Model -CaptureStats -OnTick $tickCb
+            $ollamaOutput   = [string]$compilerResult.Text
+            $compilerStats  = $compilerResult.Stats
+        } catch {
+            $compilerWatch.Stop()
+            $ErrorActionPreference = $prevEAP
+            Write-Host "ERRO: falha ao executar ollama: $($_.Exception.Message)" -ForegroundColor Red
+            exit 4
+        }
         $compilerWatch.Stop()
+        $compilerMs = [int]$compilerWatch.ElapsedMilliseconds
+        if (-not $Raw) { Write-Host "`r  done (${compilerMs}ms)       " -ForegroundColor DarkGray }
         $ErrorActionPreference = $prevEAP
-        Write-Host "ERRO: falha ao executar ollama: $($_.Exception.Message)" -ForegroundColor Red
-        exit 4
-    }
-    $compilerWatch.Stop()
-    $compilerMs = [int]$compilerWatch.ElapsedMilliseconds
-    if (-not $Raw) { Write-Host "`r  done (${compilerMs}ms)       " -ForegroundColor DarkGray }
-    $ErrorActionPreference = $prevEAP
 
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "ERRO: ollama saiu com codigo $LASTEXITCODE." -ForegroundColor Red
-        Write-Host $ollamaOutput -ForegroundColor DarkGray
-        exit 5
-    }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "ERRO: ollama saiu com codigo $LASTEXITCODE." -ForegroundColor Red
+            Write-Host $ollamaOutput -ForegroundColor DarkGray
+            exit 5
+        }
 
-    $xmlCandidate = Get-PromptXml $ollamaOutput
-    $resolved = Resolve-CompilerFallback -Xml $xmlCandidate -RawInput $rawInput
-    $xml = $resolved.Xml
-    if ($resolved.IsFallback) {
-        Write-Host "AVISO: otimizador nao produziu XML valido. Passando texto cru sem destilacao." -ForegroundColor Yellow
-        Write-Host "--- saida bruta do otimizador (descartada) ---" -ForegroundColor DarkGray
-        Write-Host $ollamaOutput -ForegroundColor DarkGray
-        $metricMode = 'fallback'
-        # Do not cache the fallback — a future retry may produce real XML.
-    } elseif (-not $NoCache) {
-        Set-CachedXml -Key $cacheKey -Xml $xml -CacheDir $script:CacheDir
+        $xmlCandidate = Get-PromptXml $ollamaOutput
+        $resolved = Resolve-CompilerFallback -Xml $xmlCandidate -RawInput $rawInput
+        $xml = $resolved.Xml
+        if ($resolved.IsFallback) {
+            Write-Host "AVISO: otimizador nao produziu XML valido. Passando texto cru sem destilacao." -ForegroundColor Yellow
+            Write-Host "--- saida bruta do otimizador (descartada) ---" -ForegroundColor DarkGray
+            Write-Host $ollamaOutput -ForegroundColor DarkGray
+            $metricMode = 'fallback'
+            # Do not cache the fallback — a future retry may produce real XML.
+        } elseif (-not $NoCache) {
+            Set-CachedXml -Key $cacheKey -Xml $xml -CacheDir $script:CacheDir
+        }
     }
-}
 } # end skipCompiler guard
 
 # Always record to history (cache hits included, so -Last shows recent context)
