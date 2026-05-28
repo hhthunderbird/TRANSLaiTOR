@@ -127,6 +127,43 @@
       "tags": ["vague", "mid-conv", "borderline", "pt"]
     },
     {
+      "id": "vague-ideia-vaga",
+      "input": "ideia vaga",
+      "expectedMode": "questions",
+      "tags": ["vague", "scope-missing", "stack-missing", "pt"]
+    },
+    {
+      "id": "vague-a-depois-followups",
+      "input": "A, depois follow-ups",
+      "expectedMode": "questions",
+      "tags": ["vague", "scope-missing", "pt"]
+    },
+    {
+      "id": "synth-english-spring-boot",
+      "input": "fix the RedisConnectionPoolFactory leak in our Spring Boot service that only shows up after about 10000 requests",
+      "expectedMode": "passthrough",
+      "tags": ["english", "camelcase", "stack-named", "concrete"]
+    },
+    {
+      "id": "synth-long-stack-trace-500",
+      "input": "ArgumentNullException: Value cannot be null. (Parameter 'source')\n   at System.Linq.ThrowHelper.ThrowArgumentNullException(ExceptionArgument argument)\n   at System.Linq.Enumerable.Where[TSource](IEnumerable`1 source, Func`2 predicate)\n   at MedroomHub.Editor.MedroomHubWindow.DrawExams () (at Assets/Scripts/Editor/MedroomHub/MedroomHubWindow.cs:271)\n   at MedroomHub.Editor.MedroomHubWindow.OnGUI () (at Assets/Scripts/Editor/MedroomHub/MedroomHubWindow.cs:88)\n   at UnityEditor.HostView.OldOnGUI () (at /Users/bokken/build/output/unity/unity/Editor/Mono/HostView.cs:142)\n   at UnityEngine.UIElements.IMGUIContainer.DoOnGUI (UnityEngine.Event evt, UnityEngine.Matrix4x4 parentTransform, UnityEngine.Rect clippingRect, System.Boolean isComputingLayout, UnityEngine.Rect layoutSize, System.Action onGUIHandler)",
+      "expectedMode": "passthrough",
+      "tags": ["error-log", "stack-trace", "long-input", "english"]
+    },
+    {
+      "id": "synth-pt-en-mix",
+      "input": "bug no controller, vai dar TypeError no JSON.parse quando o backend manda undefined",
+      "expectedMode": "passthrough",
+      "tags": ["pt-en-mix", "concrete", "stack-named"]
+    },
+    {
+      "id": "synth-bare-identifier",
+      "input": "ExamMembership",
+      "expectedMode": "passthrough",
+      "acceptableModes": ["passthrough", "questions"],
+      "tags": ["camelcase", "borderline", "bare-identifier", "pt"]
+    },
+    {
       "id": "zero-signal-short",
       "input": "ajuda",
       "expectedMode": "rejected",
