@@ -99,6 +99,34 @@
       "tags": ["file-path", "concrete", "pt"]
     },
     {
+      "id": "midconv-visual-companion",
+      "input": "vamos continuar com o visual companion",
+      "expectedMode": "passthrough",
+      "acceptableModes": ["passthrough", "questions"],
+      "tags": ["mid-conv", "borderline", "pt"]
+    },
+    {
+      "id": "midconv-reavalie-injects",
+      "input": "agora reavalie os Injects",
+      "expectedMode": "passthrough",
+      "acceptableModes": ["passthrough", "questions"],
+      "tags": ["mid-conv", "borderline", "camelcase", "pt"]
+    },
+    {
+      "id": "midconv-dropdown-enum-flag",
+      "input": "Explicação aceita. E um dropdown selecionável como se fosse o de um enum-flag?",
+      "expectedMode": "passthrough",
+      "acceptableModes": ["passthrough", "questions"],
+      "tags": ["mid-conv", "borderline", "pt"]
+    },
+    {
+      "id": "vague-comece-investigacao",
+      "input": "comece a investigação",
+      "expectedMode": "questions",
+      "acceptableModes": ["questions", "passthrough"],
+      "tags": ["vague", "mid-conv", "borderline", "pt"]
+    },
+    {
       "id": "zero-signal-short",
       "input": "ajuda",
       "expectedMode": "rejected",
