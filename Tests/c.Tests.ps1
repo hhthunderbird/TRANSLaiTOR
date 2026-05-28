@@ -215,6 +215,56 @@ Describe 'c.ps1 zero-friction default (Q&A is opt-in)' {
     }
 }
 
+Describe 'c.ps1 -MetaQuery' {
+    It 'exits 0 and returns synthetic XML with project context' {
+        $tmpHome = Join-Path $TestDrive 'home-mq-forced'
+        $res = Invoke-CScript -Args @('-MetaQuery', '-Raw', 'o que temos para fazer agora?') -IsolatedHome $tmpHome
+        $res.ExitCode | Should -Be 0
+        $res.StdOut | Should -Match '<task>'
+        $res.StdOut | Should -Match '<context>'
+        $res.StdOut | Should -Match '<constraints>'
+    }
+
+    It 'includes branch and git status in context' {
+        $tmpHome = Join-Path $TestDrive 'home-mq-context'
+        $res = Invoke-CScript -Args @('-MetaQuery', '-Raw', 'o que falta fazer?') -IsolatedHome $tmpHome
+        $res.ExitCode | Should -Be 0
+        $res.StdOut | Should -Match 'Branch:'
+    }
+
+    It 'skips Ollama entirely (no compiler/refiner error when ollama absent)' {
+        $tmpHome = Join-Path $TestDrive 'home-mq-noollama'
+        # Use PathOverride to hide ollama from PATH — meta-query path must not need it
+        $minPath = [System.IO.Path]::GetDirectoryName((Get-Command powershell.exe).Source)
+        $gitPath = [System.IO.Path]::GetDirectoryName((Get-Command git).Source)
+        $safePath = "$minPath;$gitPath"
+        $res = Invoke-CScript -Args @('-MetaQuery', '-Raw', 'qual o status?') -IsolatedHome $tmpHome -PathOverride $safePath
+        $res.ExitCode | Should -Be 0
+        $res.StdOut | Should -Match '<task>'
+    }
+
+    It 'auto-detects meta-query without -MetaQuery flag' {
+        $tmpHome = Join-Path $TestDrive 'home-mq-auto'
+        $res = Invoke-CScript -Args @('-Raw', 'o que temos para fazer agora?') -IsolatedHome $tmpHome
+        $res.ExitCode | Should -Be 0
+        $res.StdOut | Should -Match '<task>Responder consulta de status'
+    }
+
+    It 'records contextGatherMs in metrics' {
+        $tmpHome = Join-Path $TestDrive 'home-mq-metrics'
+        $stateDir = Join-Path $tmpHome '.cprompt'
+        New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+        $res = Invoke-CScript -Args @('-MetaQuery', '-Raw', 'qual o proximo passo?') -IsolatedHome $tmpHome
+        $res.ExitCode | Should -Be 0
+        $metricsPath = Join-Path $stateDir 'metrics.jsonl'
+        Test-Path $metricsPath | Should -Be $true
+        $lastLine = Get-Content $metricsPath -Tail 1 -Encoding utf8
+        $metric = $lastLine | ConvertFrom-Json
+        $metric.mode | Should -Be 'meta-query'
+        $metric.contextGatherMs | Should -BeGreaterOrEqual 0
+    }
+}
+
 Describe 'c.ps1 -NonInteractive (legacy alias, now a no-op)' {
     # Default is non-interactive, so -NonInteractive behaves identically to
     # not passing it. Tests here just verify the flag is still accepted
