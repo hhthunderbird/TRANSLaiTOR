@@ -119,6 +119,48 @@ Other previously-Unity entries (#16, #21, #22, #24, #25) still resolve to `Unity
 
 311/311 Pester pass after Modelfile change. Refiner.Quality.Tests.ps1 (12 scenarios × 10 trials) at 100% — confirms compiler-only change did not affect refiner.
 
+---
+
+# Addendum 2 — Refiner triage analysis (2026-05-28)
+
+The compiler analysis above used `c.ps1 -Raw -NoRefine`, which bypasses the refiner. To audit the refiner in isolation, `Tests/Invoke-RefinerProbe.ps1` was added: it pipes each `eval-sample.json` raw input directly through `Invoke-OllamaModel -Model prompt-refiner` and records the decision (passthrough / questions / parse-fail) plus the question payload.
+
+## Probe of `prompt-refiner` before any change (`refiner-probe.jsonl`)
+
+| Decision class | Count | Notes |
+|----------------|------:|-------|
+| Correct passthrough | 9 | #3, #9, #17, #19, #22, #23, #24, #27, #32 |
+| Correct questions | 4 | #4, #5, #7, #8 (truly contentless inputs) |
+| **Wrong questions (should passthrough)** | 14 | #1, #11, #12, #13, #14, #15, #16, #18, #20, #21, #25, #26, #28, #29 |
+| Borderline | 5 | #2, #6, #30, #31 — defensible either way |
+
+The wrong-questions cluster split into three patterns:
+
+1. **CamelCase identifier ignored** — #16 `ExamMembership`, #20 `ExamMembership`, #21 `InteractiveExamManager`, #25 `ToggleEventButton`, #26 `ExamProfile Visibility Rules`. The `DECISION RULE` listed only languages and frameworks; identifiers were not treated as concrete signal.
+2. **Keyword in `DECISION RULE` failed to fire** — #18 `quero implementar cache LRU em Go` chose questions even though `go` is in the keyword list. The few-shot `implementa um cache LRU thread-safe em Go com capacidade configuravel` → `passthrough` did not generalise to the shorter `quero implementar` variant.
+3. **Mid-conversation replies always asked** — #1, #11, #12, #13, #14, #15. The refiner has no concept of "reply" and the inputs do not satisfy the keyword rule, so it falls into the question branch even when the user has clearly named a concrete identifier or topic.
+4. **Stack-trace inputs** — #28 `NullReferenceException` and #29 `CS1061` were classified as questions. In production these reach the error-log extraction stage before the refiner, so the misclassification has no user-visible effect; the probe still flags it as a refiner-in-isolation bug.
+
+## Fix applied
+
+`Modelfile.refiner` updated:
+
+- `DECISION RULE` extended to include Unity tokens (prefab, awake, monobehaviour, gameobject, inspector, coroutine, raycast), CamelCase identifiers, file paths / extensions, and stack-trace markers.
+- `DEFAULT IS A` clause sharpened: `CHOOSE B only when the input is genuinely contentless (e.g. "ideia vaga", "preciso ajuda com algo")`.
+- Five new passthrough few-shots appended (recency anchor) covering the failure patterns: `quero implementar cache LRU em Go`, an `ExamMembership` line, a `ToggleEventButton` line, a `NullReferenceException` stack snippet, and `vamos continuar com o visual companion`.
+
+## Result (`refiner-probe-after.jsonl`)
+
+15 entries flipped `questions` → `passthrough`. All five `vague-*` bench scenarios still score 10/10 questions; all three `concrete-*` bench scenarios still score 10/10 passthrough — no over-correction.
+
+| Outcome | Count |
+|---------|------:|
+| Correctly classified after fix | ~27/32 |
+| Still wrong (identifier missed) | 1 — #16 `ExamMembership Exam precisa ser flag para  permitir escolher vários` (model declined to generalise despite a near-verbatim few-shot; suspect the extra `Exam` token or the double-space) |
+| Genuinely vague (correctly asked) | 4 — #4, #5, #7, #8 |
+
+311/311 Pester pass. `Refiner.Quality.Tests.ps1` regression test (12 cases × 10 trials, baseline drop threshold 0.40) still passes — fresh distributions stay within tolerance.
+
 ## Persisting limitations (model, not pipeline)
 
 - Identifier mangling on long PT/EN compound names (`InteractiveMeasureTape_Body` → `Interactive Measure Tape Body`, `RASCAL` → `Raskell`, `ExamMembership` → `ExamMembroship`). llama3.2:3b limitation. Not addressable in pipeline.
