@@ -6,7 +6,8 @@ BeforeAll {
         param(
             [Parameter(Mandatory)][string]$TestDrive,
             [Parameter(Mandatory)][string]$Prompt,
-            [Parameter(Mandatory)][string]$StubBody
+            [Parameter(Mandatory)][string]$StubBody,
+            [string]$TranscriptPath
         )
 
         $stubPath = Join-Path $TestDrive 'cps-stub.ps1'
@@ -24,7 +25,9 @@ BeforeAll {
         $stdInTmp  = Join-Path $TestDrive 'stdin.json'
         $stdOutTmp = Join-Path $TestDrive 'stdout.txt'
         $stdErrTmp = Join-Path $TestDrive 'stderr.txt'
-        $payload = (@{ prompt = $Prompt } | ConvertTo-Json -Compress)
+        $payloadObj = @{ prompt = $Prompt }
+        if ($TranscriptPath) { $payloadObj.transcript_path = $TranscriptPath }
+        $payload = ($payloadObj | ConvertTo-Json -Compress)
         Set-Content -LiteralPath $stdInTmp -Value $payload -Encoding UTF8 -NoNewline
 
         $psArgs = @('-NoProfile','-ExecutionPolicy','Bypass','-File',$hookCopy)
@@ -89,5 +92,53 @@ exit 0
         $r.ExitCode | Should -Be 0
         $r.StdOut   | Should -Not -Match 'AVISO'
         $r.StdOut   | Should -Not -Match 'auto-refined-prompt'
+    }
+}
+
+Describe 'c-autorefine.ps1 transcript parsing' {
+    It 'ignores user lines whose text contains literal "type":"assistant" substring' {
+        # Stub echoes the -ConversationContext value back inside the envelope's
+        # <context>, so we can assert which transcript entry the hook picked.
+        $stub = @'
+param([Parameter(ValueFromRemainingArguments=$true)][string[]]$All)
+$ctx = ''
+for ($i = 0; $i -lt $All.Count; $i++) {
+    if ($All[$i] -eq '-ConversationContext' -and ($i + 1) -lt $All.Count) {
+        $ctx = $All[$i + 1]; break
+    }
+}
+if (-not $ctx) { $ctx = 'NO_CONTEXT' }
+$ctx = $ctx -replace '[\r\n<>]', ' '
+"<task>refined task</task><context>$ctx</context><constraints>refined constraints</constraints>"
+exit 0
+'@
+
+        $real     = 'REAL_ASSISTANT_TEXT'
+        $poisoned = 'POISONED user text mentioning "type":"assistant" inside'
+
+        $assistantEntry = @{
+            type    = 'assistant'
+            message = @{ content = @(@{ type = 'text'; text = $real }) }
+        } | ConvertTo-Json -Compress -Depth 6
+
+        $userEntry = @{
+            type    = 'user'
+            message = @{ content = @(@{ type = 'text'; text = $poisoned }) }
+        } | ConvertTo-Json -Compress -Depth 6
+
+        # Assistant first (older), poisoned user LAST (newest). Reverse-scan must
+        # skip the user line and land on the real assistant.
+        $transcript = Join-Path $TestDrive 'transcript.jsonl'
+        Set-Content -LiteralPath $transcript -Value @($assistantEntry, $userEntry) -Encoding UTF8
+
+        $r = Invoke-HookSubprocess `
+            -TestDrive $TestDrive `
+            -Prompt 'implementa cache lru thread-safe em go com ttl 60s' `
+            -StubBody $stub `
+            -TranscriptPath $transcript
+
+        $r.ExitCode | Should -Be 0
+        $r.StdOut   | Should -Match ([regex]::Escape($real))
+        $r.StdOut   | Should -Not -Match 'POISONED'
     }
 }

@@ -62,8 +62,16 @@ try {
         try {
             $tLines = Get-Content $transcriptPath -Tail 60 -Encoding utf8
             for ($ti = $tLines.Count - 1; $ti -ge 0; $ti--) {
-                if ($tLines[$ti] -notmatch '"type"\s*:\s*"assistant"') { continue }
-                $tEntry = $tLines[$ti] | ConvertFrom-Json -ErrorAction Stop
+                $line = $tLines[$ti]
+                if (-not $line) { continue }
+                # Cheap pre-filter: real JSONL entries always contain the
+                # substring "assistant" somewhere. Skip lines that don't, but
+                # never trust the substring alone — verify $tEntry.type after
+                # parse to avoid false-positives on user text quoting JSON.
+                if ($line.IndexOf('assistant') -lt 0) { continue }
+                $tEntry = $null
+                try { $tEntry = $line | ConvertFrom-Json -ErrorAction Stop } catch { continue }
+                if (-not $tEntry -or $tEntry.type -ne 'assistant') { continue }
                 $textBlocks = @($tEntry.message.content | Where-Object { $_.type -eq 'text' })
                 if ($textBlocks.Count -gt 0) {
                     $lastAssistantText = [string]$textBlocks[0].text
