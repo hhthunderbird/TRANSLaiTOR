@@ -205,6 +205,11 @@ function Invoke-OllamaModel {
                 Start-Sleep -Milliseconds 200
                 try { & $OnTick } catch {}
             }
+            # HasExited can flip true before stdout/stderr async readers see
+            # the final bytes flushed. WaitForExit() here is a no-op for the
+            # process but guarantees the async stream readers are drained
+            # before we GetResult() below.
+            $p.WaitForExit()
         } else {
             $p.WaitForExit()
         }
@@ -846,7 +851,6 @@ function Format-ErrorLogXml {
 
     $locStr = if ($locations.Count -gt 0) { ($locations | Select-Object -First 5) -join ', ' } else { 'localização não identificada' }
     $errList = if ($errors.Count -gt 1) { ($errors | Select-Object -First 3) -join ' | ' } else { $errorSummary }
-    $dedup = if ($errors.Count -lt $lines.Count / 3) { '' } else { '' }
     $truncErrList = if ($errList.Length -gt 200) { $errList.Substring(0, 200) } else { $errList }
 
     $task = "$taskVerb em $locStr"
