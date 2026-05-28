@@ -1486,3 +1486,122 @@ Describe 'ConvertTo-SinceDate' {
         [math]::Abs(($result - $now.AddDays(-7)).TotalSeconds) | Should -BeLessThan 2
     }
 }
+
+Describe 'Test-InputIsErrorLog' {
+    It 'detects C# NullReferenceException stack trace' {
+        $input = @"
+NullReferenceException: Object reference not set to an instance of an object
+InteractiveMeasureTape_Body.UpdateUI () (at Assets/Scripts/InteractiveObjects/InteractiveMeasureTape_Body.cs:137)
+InteractiveMeasureTape_Body.Update () (at Assets/Scripts/InteractiveObjects/InteractiveMeasureTape_Body.cs:101)
+"@
+        Test-InputIsErrorLog -Text $input | Should -Be $true
+    }
+
+    It 'detects Unity compiler error CS0234' {
+        $input = "Assets\Scripts\Devtools\Editor\AudioCreator.cs(10,29): error CS0234: The type or namespace name 'HighDefinition' does not exist"
+        Test-InputIsErrorLog -Text $input | Should -Be $true
+    }
+
+    It 'detects Unity compiler error CS1061' {
+        $input = "Assets\Scripts\UI\MainUIController.cs(193,51): error CS1061: 'ProgressIndicator' does not contain a definition for 'progressValue'"
+        Test-InputIsErrorLog -Text $input | Should -Be $true
+    }
+
+    It 'detects ArgumentNullException' {
+        $input = @"
+ArgumentNullException: Value cannot be null.
+Parameter name: source
+System.Linq.Enumerable.Where[TSource] (at <2a397996>:0)
+"@
+        Test-InputIsErrorLog -Text $input | Should -Be $true
+    }
+
+    It 'detects Unity prefab import error' {
+        $input = @"
+Problem detected while importing the Prefab file: 'Assets/Prefabs/UI/ExamsUI/PatientIconsCanvas.prefab'.
+Errors:
+    Nested Prefab problem. Missing Nested Prefab Asset: 'ProgressIndicator'
+"@
+        Test-InputIsErrorLog -Text $input | Should -Be $true
+    }
+
+    It 'detects Python traceback' {
+        $input = @"
+Traceback (most recent call last):
+  File "app.py", line 42, in main
+    result = process(data)
+TypeError: 'NoneType' object is not subscriptable
+"@
+        Test-InputIsErrorLog -Text $input | Should -Be $true
+    }
+
+    It 'rejects normal coding request' {
+        Test-InputIsErrorLog -Text 'quero implementar cache LRU em Go' | Should -Be $false
+    }
+
+    It 'rejects conversational reply' {
+        Test-InputIsErrorLog -Text 'sim, pode continuar com isso' | Should -Be $false
+    }
+
+    It 'rejects meta-query' {
+        Test-InputIsErrorLog -Text 'o que temos para fazer agora?' | Should -Be $false
+    }
+
+    It 'returns $false for null' {
+        Test-InputIsErrorLog -Text $null | Should -Be $false
+    }
+
+    It 'returns $false for empty string' {
+        Test-InputIsErrorLog -Text '' | Should -Be $false
+    }
+}
+
+Describe 'Format-ErrorLogXml' {
+    It 'extracts exception type and first user-code location from C# stack trace' {
+        $input = @"
+NullReferenceException: Object reference not set to an instance of an object
+InteractiveMeasureTape_Body.UpdateUI () (at Assets/Scripts/InteractiveObjects/InteractiveMeasureTape_Body.cs:137)
+InteractiveMeasureTape_Body.UpdateDisplayValue () (at Assets/Scripts/InteractiveObjects/InteractiveMeasureTape_Body.cs:128)
+UnityEngine.GUIUtility.ProcessEvent (at <internal>:0)
+"@
+        $xml = Format-ErrorLogXml -Text $input
+        $xml | Should -Match '<task>'
+        $xml | Should -Match 'NullReferenceException'
+        $xml | Should -Match 'InteractiveMeasureTape_Body'
+    }
+
+    It 'produces valid XML envelope matching hook regex' {
+        $input = "Assets\Scripts\UI\MainUIController.cs(193,51): error CS1061: 'ProgressIndicator' does not contain a definition for 'progressValue'"
+        $xml = Format-ErrorLogXml -Text $input
+        $envelope = '(?s)<task>\s*\S.*?\s*</task>\s*<context>\s*\S.*?\s*</context>\s*<constraints>\s*\S.*?\s*</constraints>'
+        $xml | Should -Match $envelope
+    }
+
+    It 'extracts compiler error code and file location' {
+        $input = "Assets\Scripts\Devtools\Editor\AudioCreator.cs(10,29): error CS0234: The type or namespace name 'HighDefinition' does not exist in the namespace 'UnityEngine.Rendering'"
+        $xml = Format-ErrorLogXml -Text $input
+        $xml | Should -Match 'CS0234'
+        $xml | Should -Match 'AudioCreator\.cs'
+    }
+
+    It 'deduplicates repeated errors in verbose Unity output' {
+        $block = "ArgumentNullException: Value cannot be null.`nMedroomHubWindow.DrawExams () (at Assets/Scripts/Editor/MedroomHub/MedroomHubWindow.cs:271)"
+        $input = "$block`nGUI Error: Invalid GUILayout state`n$block`nGUI Error: You are pushing more GUIClips`n$block"
+        $xml = Format-ErrorLogXml -Text $input
+        $xml | Should -Match 'MedroomHubWindow'
+        # Should mention dedup or count, not repeat the full stack 3 times
+        $xml.Length | Should -BeLessThan 600
+    }
+
+    It 'handles Python traceback' {
+        $input = @"
+Traceback (most recent call last):
+  File "app.py", line 42, in main
+    result = process(data)
+TypeError: 'NoneType' object is not subscriptable
+"@
+        $xml = Format-ErrorLogXml -Text $input
+        $xml | Should -Match 'TypeError'
+        $xml | Should -Match 'app\.py'
+    }
+}

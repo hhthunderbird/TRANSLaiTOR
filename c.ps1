@@ -198,6 +198,18 @@ if ($MetaQuery -or (Test-InputIsMetaQuery -Text $userInput)) {
     $skipCompiler = $true
 }
 
+# Error-log stage: detect stack traces / compiler errors and extract signal
+# instead of sending to the LLM compiler (which would rewrite them).
+if (-not $skipCompiler -and (Test-InputIsErrorLog -Text $userInput)) {
+    if (-not $Raw) {
+        Write-Host "--- log de erro detectado (extraindo sinal) ---" -ForegroundColor DarkCyan
+    }
+    $xml = Format-ErrorLogXml -Text $userInput
+    $metricMode = 'error-log'
+    $skipRefiner = $true
+    $skipCompiler = $true
+}
+
 if (-not $skipRefiner) {
     try { $null = Resolve-Tool 'ollama'; $ollamaPresent = $true } catch { $ollamaPresent = $false }
 

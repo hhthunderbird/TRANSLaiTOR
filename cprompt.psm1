@@ -760,6 +760,93 @@ function Get-RefinerRegressions {
     return $failures
 }
 
+function Test-InputIsErrorLog {
+    [CmdletBinding()]
+    param([AllowNull()][AllowEmptyString()][string]$Text)
+    if ([string]::IsNullOrWhiteSpace($Text)) { return $false }
+
+    $patterns = @(
+        'Exception\s*:',
+        '\berror\s+CS\d{4}\b',
+        '\(at\s+Assets/',
+        '\.cs\(\d+,\d+\)\s*:',
+        '\bTraceback\s*\(most recent',
+        '\bFile\s+"[^"]+",\s*line\s+\d+',
+        'Problem detected while importing',
+        '\bMissing\s+.*Prefab\b',
+        '\bTypeError\b.*is not',
+        '\bAttributeError\b.*has no attribute'
+    )
+    foreach ($p in $patterns) {
+        if ($Text -match $p) { return $true }
+    }
+    return $false
+}
+
+function Format-ErrorLogXml {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Text)
+
+    $lines = @($Text -split "`n" | ForEach-Object { $_.TrimEnd("`r") })
+
+    # Extract unique exception/error lines
+    $errors = @()
+    $seen = @{}
+    foreach ($line in $lines) {
+        $sig = ''
+        if ($line -match '^(\w+Exception)\s*:\s*(.+)') {
+            $sig = "$($Matches[1]): $($Matches[2].Trim())"
+        } elseif ($line -match '(error\s+CS\d{4})\s*:\s*(.+)') {
+            $sig = "$($Matches[1]): $($Matches[2].Trim())"
+        } elseif ($line -match '(TypeError|AttributeError|ValueError|KeyError)\s*:\s*(.+)') {
+            $sig = "$($Matches[1]): $($Matches[2].Trim())"
+        } elseif ($line -match 'Problem detected while importing') {
+            $sig = $line.Trim()
+        }
+        if ($sig -and -not $seen.ContainsKey($sig)) {
+            $seen[$sig] = $true
+            $errors += $sig
+        }
+    }
+
+    # Extract user-code file locations (not framework internals)
+    $locations = @()
+    $seenLoc = @{}
+    foreach ($line in $lines) {
+        $loc = ''
+        if ($line -match '\(at\s+(Assets/[^)]+)\)') {
+            $loc = $Matches[1]
+        } elseif ($line -match '(Assets[\\/][^\s(]+\.\w+)\((\d+),(\d+)\)') {
+            $loc = "$($Matches[1]):$($Matches[2])"
+        } elseif ($line -match 'File\s+"([^"]+)",\s*line\s+(\d+)') {
+            $loc = "$($Matches[1]):$($Matches[2])"
+        } elseif ($line -match 'Missing.*Prefab.*?[''"]([^''"]+)[''"]') {
+            $loc = "Missing Prefab: $($Matches[1])"
+        }
+        if ($loc -and -not $seenLoc.ContainsKey($loc)) {
+            $seenLoc[$loc] = $true
+            $locations += $loc
+        }
+    }
+
+    $errorSummary = if ($errors.Count -gt 0) { $errors[0] } else { 'Erro detectado' }
+    $taskVerb = if ($errorSummary -match '^(\w+Exception)') { "Resolver $($Matches[1])" }
+                elseif ($errorSummary -match 'error (CS\d{4})') { "Corrigir erro $($Matches[1])" }
+                elseif ($errorSummary -match '^(TypeError|AttributeError)') { "Resolver $($Matches[1])" }
+                elseif ($errorSummary -match 'Problem detected') { 'Resolver problema de importação' }
+                else { 'Resolver erro' }
+
+    $locStr = if ($locations.Count -gt 0) { ($locations | Select-Object -First 5) -join ', ' } else { 'localização não identificada' }
+    $errList = if ($errors.Count -gt 1) { ($errors | Select-Object -First 3) -join ' | ' } else { $errorSummary }
+    $dedup = if ($errors.Count -lt $lines.Count / 3) { '' } else { '' }
+    $truncErrList = if ($errList.Length -gt 200) { $errList.Substring(0, 200) } else { $errList }
+
+    $task = "$taskVerb em $locStr"
+    if ($task.Length -gt 150) { $task = $task.Substring(0, 150) }
+
+    return "<task>$task</task><context>$truncErrList</context><constraints>Analisar causa raiz e corrigir. Erros unicos: $($errors.Count), localizacoes: $($locations.Count)</constraints>"
+}
+
 Export-ModuleMember -Function `
     Remove-Bom, `
     Remove-AnsiEscapes, `
@@ -787,4 +874,6 @@ Export-ModuleMember -Function `
     Get-RefinerOutput, `
     Test-RefinerOutput, `
     Merge-RefinementAnswers, `
-    Get-RefinerRegressions
+    Get-RefinerRegressions, `
+    Test-InputIsErrorLog, `
+    Format-ErrorLogXml
