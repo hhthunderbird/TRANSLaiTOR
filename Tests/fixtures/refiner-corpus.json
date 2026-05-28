@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "notes": "Curated inputs for refiner quality benchmark. expectedMode: passthrough | questions | rejected (caught by zero-signal pre-gate). Edit when refiner behavior intentionally changes; do not mutate to chase a flaky run.",
+  "version": 2,
+  "notes": "Curated inputs for refiner quality benchmark. expectedMode (required): passthrough | questions | rejected (caught by zero-signal pre-gate). acceptableModes (optional): array of modes that count as a hit (default [expectedMode]); MUST contain expectedMode and only values in {passthrough, questions}. Use acceptableModes only when (1) the input has no clear missing slot, (2) PR #48 probe observed the refiner picking the alternate mode, AND (3) the case has the `borderline` tag. tags is a free-form convention: camelcase | mid-conv | error-log | file-path | english | pt-en-mix | long-input | borderline | concrete | vague | stack-named | scope-named | stack-missing | scope-missing | zero-signal | pre-gate. Edit when refiner behavior intentionally changes; do not mutate to chase a flaky run. Regenerate bench-results/baseline.json via Tests/Invoke-RefinerBaseline.ps1 after editing.",
   "cases": [
     {
       "id": "concrete-go-cache",
