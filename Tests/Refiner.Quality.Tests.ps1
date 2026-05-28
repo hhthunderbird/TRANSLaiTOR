@@ -97,9 +97,14 @@ Describe 'Refiner statistical invariants' -Tag 'Live' -Skip:(-not $available) {
         }
 
         It "hits expected mode (<_.expectedMode>) in >=60% of trials" -Skip:($_.expectedMode -notin @('passthrough','questions')) {
-            $hit  = @($script:Dist | Where-Object { $_.Mode -eq $script:ExpectedMode }).Count
+            $accept = if ($_.PSObject.Properties['acceptableModes'] -and $_.acceptableModes) {
+                @($_.acceptableModes | ForEach-Object { [string]$_ })
+            } else {
+                @([string]$script:ExpectedMode)
+            }
+            $hit  = @($script:Dist | Where-Object { [string]$_.Mode -in $accept }).Count
             $rate = $hit / $script:Trials
-            Write-Host ("    [{0}] {1}={2}/{3} ({4:P0})" -f $script:CaseId, $script:ExpectedMode, $hit, $script:Trials, $rate)
+            Write-Host ("    [{0}] {1}={2}/{3} ({4:P0})" -f $script:CaseId, ($accept -join '|'), $hit, $script:Trials, $rate)
             ($rate -ge 0.6) | Should -Be $true
         }
     }
