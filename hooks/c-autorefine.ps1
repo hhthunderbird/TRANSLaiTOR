@@ -48,11 +48,6 @@ try {
     $conversational = '^(yes|yeah|yep|no|nope|y|n|ok|okay|sim|nao|n[aã]o|continue|continua|next|go|proceed|stop|wait|sure|thanks|obrigado|done|pronto)\W*$'
     if ($trim -match $conversational) { exit 0 }
 
-    # Meta / status questions: WH-word start AND ends with `?`. False positives
-    # on dev-task questions are acceptable — those just pass through unrefined.
-    $metaQuestion = '(?i)^\s*(qual|que|o que|por que|como|quando|onde|what|why|how|when|where|which|who|whose)\b.*\?\s*$'
-    if ($trim -match $metaQuestion) { exit 0 }
-
     if (-not (Test-Path $cps)) { exit 0 }
 
     # Extract last assistant text from transcript for conversation context.

@@ -8,6 +8,7 @@ param(
     [switch]$NoRefine,
     [switch]$NonInteractive,
     [switch]$Interactive,
+    [switch]$MetaQuery,
     [string]$Model = 'prompt-opt',
     [string]$RefinerModel = 'prompt-refiner',
     [string]$ConversationContext = '',
@@ -126,11 +127,14 @@ if (-not (Test-InputAcceptable -Text $userInput -MaxLength $script:MaxInputChars
     exit 1
 }
 
-$rawInput      = $userInput
-$refined       = $false
-$metricMode    = 'raw'   # default: refiner not consulted
-$refinerMs     = 0
-$compilerMs    = 0
+$rawInput        = $userInput
+$refined         = $false
+$metricMode      = 'raw'   # default: refiner not consulted
+$refinerMs       = 0
+$compilerMs      = 0
+$contextGatherMs = 0
+$xml             = $null
+$fromCache       = $false
 $runStart      = [System.Diagnostics.Stopwatch]::StartNew()
 $refinerStats  = $null
 $compilerStats = $null
@@ -170,6 +174,28 @@ if (-not $skipRefiner -and (Test-InputIsZeroSignal -Text $userInput)) {
         $metricMode = 'pregate-skip'
         $skipRefiner = $true
     }
+}
+
+# Meta-query stage: detect status/conversational queries and build synthetic XML
+# from project context instead of sending to the LLM compiler.
+$skipCompiler = $false
+$contextGatherMs = 0
+if ($MetaQuery -or (Test-InputIsMetaQuery -Text $userInput)) {
+    if (-not $Raw) {
+        Write-Host "--- consulta de status detectada ---" -ForegroundColor DarkCyan
+    }
+    $contextWatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $budgetMs = if ($NonInteractive -or $Raw) { 3000 } else { 0 }
+    $progressCb = if (-not $Raw) {
+        { param($Step) Write-Host "  [$Step]" -ForegroundColor DarkGray }
+    } else { $null }
+    $projectCtx = Get-ProjectContext -Path (Get-Location).Path -BudgetMs $budgetMs -OnProgress $progressCb
+    $xml = Format-MetaQueryXml -Question $userInput -Context $projectCtx
+    $contextWatch.Stop()
+    $contextGatherMs = [int]$contextWatch.ElapsedMilliseconds
+    $metricMode = 'meta-query'
+    $skipRefiner = $true
+    $skipCompiler = $true
 }
 
 if (-not $skipRefiner) {
@@ -230,9 +256,8 @@ if (-not $skipRefiner) {
     }
 }
 
+if (-not $skipCompiler) {
 $cacheKey = Get-CacheKey -Model $Model -Text $userInput
-$xml = $null
-$fromCache = $false
 
 if (-not $NoCache) {
     $cached = Get-CachedXml -Key $cacheKey -CacheDir $script:CacheDir
@@ -302,6 +327,7 @@ if (-not $xml) {
         Set-CachedXml -Key $cacheKey -Xml $xml -CacheDir $script:CacheDir
     }
 }
+} # end skipCompiler guard
 
 # Always record to history (cache hits included, so -Last shows recent context)
 Add-HistoryEntry -Path $script:HistoryPath -Entry @{
@@ -325,6 +351,7 @@ try {
         xmlChars      = $xmlLen
         refinerMs     = $refinerMs
         compilerMs    = $compilerMs
+        contextGatherMs = $contextGatherMs
         totalMs       = [int]$runStart.ElapsedMilliseconds
         cacheHit      = [bool]$fromCache
         flags         = @{
