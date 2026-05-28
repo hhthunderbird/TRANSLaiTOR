@@ -1664,3 +1664,60 @@ TypeError: 'NoneType' object is not subscriptable
         $xml | Should -Match 'app\.py'
     }
 }
+
+Describe 'refiner-corpus.json schema' {
+    BeforeAll {
+        $script:corpusPath = Join-Path $PSScriptRoot 'fixtures/refiner-corpus.json'
+        $script:corpus = Get-Content -LiteralPath $script:corpusPath -Raw -Encoding utf8 | ConvertFrom-Json
+    }
+
+    It 'has a numeric version field' {
+        $script:corpus.version | Should -BeOfType [int]
+    }
+
+    It 'has a non-empty cases array' {
+        @($script:corpus.cases).Count | Should -BeGreaterThan 0
+    }
+
+    It 'every case has a non-empty id' {
+        foreach ($c in $script:corpus.cases) {
+            [string]::IsNullOrWhiteSpace([string]$c.id) | Should -BeFalse -Because "case id missing: $($c | ConvertTo-Json -Compress)"
+        }
+    }
+
+    It 'case ids are unique' {
+        $ids = @($script:corpus.cases | ForEach-Object { [string]$_.id })
+        ($ids | Group-Object | Where-Object { $_.Count -gt 1 } | ForEach-Object { $_.Name }) | Should -BeNullOrEmpty
+    }
+
+    It 'every case has a non-null input (whitespace allowed for rejected/zero-signal cases)' {
+        foreach ($c in $script:corpus.cases) {
+            # Rejected cases like zero-signal-blank deliberately use whitespace
+            # to exercise the pre-gate. Other cases must have meaningful text.
+            if ([string]$c.expectedMode -eq 'rejected') {
+                $null -eq $c.input | Should -BeFalse -Because "input must not be null for case '$($c.id)'"
+            } else {
+                [string]::IsNullOrWhiteSpace([string]$c.input) | Should -BeFalse -Because "input missing for live case '$($c.id)'"
+            }
+        }
+    }
+
+    It 'every expectedMode is one of passthrough|questions|rejected' {
+        foreach ($c in $script:corpus.cases) {
+            [string]$c.expectedMode | Should -BeIn @('passthrough','questions','rejected') -Because "case '$($c.id)' has invalid expectedMode"
+        }
+    }
+
+    It 'when acceptableModes is present it is an array containing expectedMode and only valid live modes' {
+        foreach ($c in $script:corpus.cases) {
+            if (-not $c.PSObject.Properties['acceptableModes']) { continue }
+            if ($null -eq $c.acceptableModes) { continue }
+            $am = @($c.acceptableModes | ForEach-Object { [string]$_ })
+            $am | Should -Not -BeNullOrEmpty -Because "case '$($c.id)' has empty acceptableModes"
+            foreach ($m in $am) {
+                $m | Should -BeIn @('passthrough','questions') -Because "case '$($c.id)' has invalid acceptableMode '$m'"
+            }
+            $am | Should -Contain ([string]$c.expectedMode) -Because "case '$($c.id)' acceptableModes must contain expectedMode '$($c.expectedMode)'"
+        }
+    }
+}
