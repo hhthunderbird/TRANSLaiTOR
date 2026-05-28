@@ -42,7 +42,7 @@ try {
     if ($trim.StartsWith($optOutPrefix)) { exit 0 }
     if ($trim.StartsWith('/')) { exit 0 }
     if ($trim.StartsWith('!')) { exit 0 }
-    if ($trim.Length -lt 20) { exit 0 }
+    if ($trim.Length -lt 30) { exit 0 }
     if ($trim.Length -gt 4000) { exit 0 }
 
     $conversational = '^(yes|yeah|yep|no|nope|y|n|ok|okay|sim|nao|n[aã]o|continue|continua|next|go|proceed|stop|wait|sure|thanks|obrigado|done|pronto)\W*$'
@@ -74,6 +74,26 @@ try {
         if ($lastAssistantText.Length -gt 500) {
             $lastAssistantText = $lastAssistantText.Substring(0, 500)
         }
+    }
+
+    # Read project CLAUDE.md for domain awareness (e.g. "this is a Unity project").
+    $harnessContext = ''
+    try {
+        $cwd = if ($payload.PSObject.Properties.Match('cwd').Count -gt 0) { $payload.cwd } else { (Get-Location).Path }
+        $claudeMd = Join-Path $cwd 'CLAUDE.md'
+        if (Test-Path $claudeMd) {
+            $content = Get-Content $claudeMd -Raw -Encoding utf8
+            if ($content.Length -gt 500) { $content = $content.Substring(0, 500) }
+            $harnessContext = "[CLAUDE.md] $content"
+        }
+    } catch {}
+
+    if ($lastAssistantText -or $harnessContext) {
+        $combinedContext = ($lastAssistantText, $harnessContext | Where-Object { $_ }) -join "`n"
+        if ($combinedContext.Length -gt 800) {
+            $combinedContext = $combinedContext.Substring(0, 800)
+        }
+        $lastAssistantText = $combinedContext
     }
 
     $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
