@@ -71,6 +71,10 @@ $script:RefinerModes = @('passthrough', 'questions', 'invalid')
 
 # Compute the metrics for a single LIVE case (trials > 0). Returns $null for
 # rejected / non-live cases (trials <= 0), which the caller SKIPS.
+#
+# NOTE: This is the strict variant kept for direct unit tests. The comparison
+# path uses Get-CaseMetricsGuarded so that a MALFORMED live case (trials <= 0 but
+# not genuinely rejected) surfaces with guarded zero shares instead of vanishing.
 function Get-CaseMetrics {
     [CmdletBinding()]
     param(
@@ -80,6 +84,22 @@ function Get-CaseMetrics {
     $trials = [int] (Get-CaseProperty -Case $Case -Name 'trials' -Default 0)
     if ($trials -le 0) { return $null }   # rejected / pre-gate cases are skipped
 
+    return (Get-CaseMetricsGuarded -Case $Case)
+}
+
+# Compute the metrics for a single case WITHOUT skipping on trials <= 0.
+# When trials <= 0 (a malformed live case), maxModeShare and expectedHit are
+# treated as 0 rather than dividing by zero (which would yield Infinity/NaN).
+# Genuinely rejected cases are excluded earlier by the caller (expectedMode =
+# 'rejected'); this function is the safe per-case math for everything else.
+function Get-CaseMetricsGuarded {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Case
+    )
+
+    $trials = [int] (Get-CaseProperty -Case $Case -Name 'trials' -Default 0)
+
     $modeCounts = Get-CaseProperty -Case $Case -Name 'modeCounts' -Default $null
 
     $counts = [ordered]@{}
@@ -87,9 +107,15 @@ function Get-CaseMetrics {
         $counts[$m] = Get-ModeCount -ModeCounts $modeCounts -Key $m
     }
 
-    # maxModeShare = highest single mode count / trials (1.0 == fully deterministic)
+    # maxModeShare = highest single mode count / trials (1.0 == fully deterministic).
+    # Divide-by-zero guard: trials <= 0 -> share is 0, never Infinity/NaN.
     $maxCount = ($counts.Values | Measure-Object -Maximum).Maximum
-    $maxModeShare = [double] $maxCount / $trials
+    if ($trials -le 0) {
+        $maxModeShare = [double] 0
+    }
+    else {
+        $maxModeShare = [double] $maxCount / $trials
+    }
 
     # dominantMode = mode with the highest count.
     # Tie-break (documented): prefer passthrough > questions > invalid when equal.
@@ -120,7 +146,13 @@ function Get-CaseMetrics {
     foreach ($m in $acceptableSet) {
         $hitCount += Get-ModeCount -ModeCounts $modeCounts -Key ([string] $m)
     }
-    $expectedHit = [double] $hitCount / $trials
+    # Same divide-by-zero guard as maxModeShare.
+    if ($trials -le 0) {
+        $expectedHit = [double] 0
+    }
+    else {
+        $expectedHit = [double] $hitCount / $trials
+    }
 
     return [PSCustomObject]@{
         maxModeShare = $maxModeShare
@@ -171,21 +203,23 @@ function Compare-RefinerBench {
     $baseline  = Resolve-BenchCases -Path $BaselinePath  -Cases $BaselineCases
     $candidate = Resolve-BenchCases -Path $CandidatePath -Cases $CandidateCases
 
-    # Build id -> metrics maps for LIVE cases only (rejected cases return $null).
+    # Build id -> metrics maps. Genuinely rejected cases (expectedMode = 'rejected')
+    # are skipped entirely; every other case is measured via the guarded metric so a
+    # MALFORMED live case (trials <= 0) surfaces with zero shares instead of vanishing.
     $baselineMetrics  = @{}
     $candidateMetrics = @{}
 
     foreach ($c in $baseline) {
         $id = Get-CaseProperty -Case $c -Name 'id' -Default $null
         if ($null -eq $id) { continue }
-        $m = Get-CaseMetrics -Case $c
-        if ($null -ne $m) { $baselineMetrics[[string] $id] = $m }
+        if ((Get-CaseProperty -Case $c -Name 'expectedMode' -Default $null) -eq 'rejected') { continue }
+        $baselineMetrics[[string] $id] = Get-CaseMetricsGuarded -Case $c
     }
     foreach ($c in $candidate) {
         $id = Get-CaseProperty -Case $c -Name 'id' -Default $null
         if ($null -eq $id) { continue }
-        $m = Get-CaseMetrics -Case $c
-        if ($null -ne $m) { $candidateMetrics[[string] $id] = $m }
+        if ((Get-CaseProperty -Case $c -Name 'expectedMode' -Default $null) -eq 'rejected') { continue }
+        $candidateMetrics[[string] $id] = Get-CaseMetricsGuarded -Case $c
     }
 
     # Union of live ids from either side, preserving baseline order then any
@@ -220,13 +254,19 @@ function Compare-RefinerBench {
         elseif ($null -ne $b -and $null -ne $c) {
             $drop = $b.expectedHit - $c.expectedHit
 
+            # The two sub-rules are independent: a case can breach the drop threshold
+            # AND fall below the absolute floor at the same time. Collect every
+            # applicable reason so the floor violation is never hidden by the drop branch.
+            $reasons = @()
             if ($c.expectedHit -lt ($b.expectedHit - $DropThreshold)) {
-                $isRegression = $true
-                $reason = ("drop {0:P0} exceeds threshold {1:P0}" -f $drop, $DropThreshold)
+                $reasons += ("drop {0:P0} exceeds threshold {1:P0}" -f $drop, $DropThreshold)
             }
-            elseif (($b.expectedHit -ge $AbsoluteFloor) -and ($c.expectedHit -lt $AbsoluteFloor)) {
+            if (($b.expectedHit -ge $AbsoluteFloor) -and ($c.expectedHit -lt $AbsoluteFloor)) {
+                $reasons += ("fell below absolute floor {0:P0}" -f $AbsoluteFloor)
+            }
+            if ($reasons.Count -gt 0) {
                 $isRegression = $true
-                $reason = ("fell below absolute floor {0:P0}" -f $AbsoluteFloor)
+                $reason = ($reasons -join '; ')
             }
         }
         # candidate-only (new) cases: never flagged as a regression.

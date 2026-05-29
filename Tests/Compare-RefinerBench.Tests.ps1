@@ -114,6 +114,50 @@ Describe 'Compare-RefinerBench — regression rules' {
         $row.isRegression | Should -BeTrue
         $row.regressionReason | Should -Match 'floor'
     }
+    It 'reports BOTH the drop AND the floor reason when both rules fire' {
+        # baseline expectedHit 1.0, candidate 0.50:
+        #   drop = 0.50 > DropThreshold 0.40  -> drop rule fires
+        #   candidate 0.50 < AbsoluteFloor 0.60 while baseline 1.0 >= 0.60 -> floor rule fires
+        $b = New-Case -Id 'rboth' -Trials 10 -ModeCounts @{ passthrough = 10; questions = 0; invalid = 0 } # 1.0
+        $c = New-Case -Id 'rboth' -Trials 10 -ModeCounts @{ passthrough = 5;  questions = 5; invalid = 0 } # 0.5
+        $row = Compare-RefinerBench -BaselineCases @($b) -CandidateCases @($c) -DropThreshold 0.40 -AbsoluteFloor 0.60
+        $row.isRegression | Should -BeTrue
+        # Both load-bearing substrings must be present (floor must not be hidden by the drop branch).
+        $row.regressionReason | Should -Match 'exceeds threshold'
+        $row.regressionReason | Should -Match 'fell below absolute floor'
+    }
+    It 'reports ONLY the drop reason when the floor rule does not apply' {
+        # baseline 1.0 -> candidate 0.5: drop 0.50 > 0.40, but floor lowered to 0.30 so floor rule is inactive.
+        $b = New-Case -Id 'rdrop' -Trials 10 -ModeCounts @{ passthrough = 10; questions = 0; invalid = 0 }
+        $c = New-Case -Id 'rdrop' -Trials 10 -ModeCounts @{ passthrough = 5;  questions = 5; invalid = 0 }
+        $row = Compare-RefinerBench -BaselineCases @($b) -CandidateCases @($c) -DropThreshold 0.40 -AbsoluteFloor 0.30
+        $row.isRegression | Should -BeTrue
+        $row.regressionReason | Should -Match 'exceeds threshold'
+        $row.regressionReason | Should -Not -Match 'fell below absolute floor'
+    }
+    It 'does not throw and yields finite zero shares for a malformed LIVE candidate case with trials = 0' {
+        # A non-rejected case whose trials is 0 (malformed bench output) must not divide-by-zero.
+        # It surfaces as a row with guarded zero shares (not skipped, not NaN/Infinity).
+        $b = New-Case -Id 'mal' -Trials 10 -ModeCounts @{ passthrough = 10; questions = 0; invalid = 0 }
+        $c = New-Case -Id 'mal' -ExpectedMode 'passthrough' -Trials 0 -ModeCounts @{ passthrough = 0; questions = 0; invalid = 0 }
+        { Compare-RefinerBench -BaselineCases @($b) -CandidateCases @($c) } | Should -Not -Throw
+        $row = Compare-RefinerBench -BaselineCases @($b) -CandidateCases @($c)
+        $row | Should -Not -BeNullOrEmpty
+        $row.candidateMaxShare    | Should -Be 0
+        $row.candidateExpectedHit | Should -Be 0
+        [double]::IsNaN([double]$row.candidateMaxShare)        | Should -BeFalse
+        [double]::IsInfinity([double]$row.candidateMaxShare)   | Should -BeFalse
+        [double]::IsNaN([double]$row.candidateExpectedHit)     | Should -BeFalse
+        [double]::IsInfinity([double]$row.candidateExpectedHit)| Should -BeFalse
+    }
+    It 'computes finite guarded shares directly for a trials = 0 case via Get-CaseMetricsGuarded' {
+        # The guarded metric path treats trials <= 0 as zero shares rather than dividing.
+        $c = New-Case -Id 'z' -ExpectedMode 'passthrough' -Trials 0 -ModeCounts @{ passthrough = 0; questions = 0; invalid = 0 }
+        $m = Get-CaseMetricsGuarded -Case $c
+        $m.maxModeShare | Should -Be 0
+        $m.expectedHit  | Should -Be 0
+        [double]::IsNaN([double]$m.maxModeShare) | Should -BeFalse
+    }
     It 'flags a case missing from the candidate run' {
         $b = New-Case -Id 'r4' -Trials 10 -ModeCounts @{ passthrough = 10; questions = 0; invalid = 0 }
         $row = Compare-RefinerBench -BaselineCases @($b) -CandidateCases @()
