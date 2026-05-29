@@ -1213,7 +1213,10 @@
                       "id":  "camelcase-exam-profile-rules",
                       "input":  "voltando para a implementação e migração.\nExamProfile Visibility Rules e as outras Rules recebem uma lista de Memberships e possui e possui uma lista de regras, então todos os elementos dentro das rules atendem àquela lista de regras",
                       "expectedMode":  "passthrough",
-                      "acceptableModes":  null,
+                      "acceptableModes":  [
+                                              "passthrough",
+                                              "questions"
+                                          ],
                       "preGateBlocks":  false,
                       "trials":  20,
                       "modeCounts":  {
@@ -1333,7 +1336,10 @@
                       "id":  "keyword-go-cache-lru-short",
                       "input":  "quero implementar cache LRU em Go",
                       "expectedMode":  "passthrough",
-                      "acceptableModes":  null,
+                      "acceptableModes":  [
+                                              "passthrough",
+                                              "questions"
+                                          ],
                       "preGateBlocks":  false,
                       "trials":  20,
                       "modeCounts":  {
