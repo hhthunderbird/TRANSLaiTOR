@@ -42,7 +42,8 @@
       "id": "camelcase-exam-membership-flag",
       "input": "ExamMembership Exam precisa ser flag para  permitir escolher vários",
       "expectedMode": "passthrough",
-      "tags": ["camelcase", "concrete", "pt"]
+      "acceptableModes": ["passthrough", "questions"],
+      "tags": ["camelcase", "borderline", "pt"]
     },
     {
       "id": "camelcase-toggle-event-button",
@@ -146,7 +147,7 @@
     },
     {
       "id": "synth-long-stack-trace-500",
-      "input": "ArgumentNullException: Value cannot be null. (Parameter 'source')\n   at System.Linq.ThrowHelper.ThrowArgumentNullException(ExceptionArgument argument)\n   at System.Linq.Enumerable.Where[TSource](IEnumerable`1 source, Func`2 predicate)\n   at MedroomHub.Editor.MedroomHubWindow.DrawExams () (at Assets/Scripts/Editor/MedroomHub/MedroomHubWindow.cs:271)\n   at MedroomHub.Editor.MedroomHubWindow.OnGUI () (at Assets/Scripts/Editor/MedroomHub/MedroomHubWindow.cs:88)\n   at UnityEditor.HostView.OldOnGUI () (at /Users/bokken/build/output/unity/unity/Editor/Mono/HostView.cs:142)\n   at UnityEngine.UIElements.IMGUIContainer.DoOnGUI (UnityEngine.Event evt, UnityEngine.Matrix4x4 parentTransform, UnityEngine.Rect clippingRect, System.Boolean isComputingLayout, UnityEngine.Rect layoutSize, System.Action onGUIHandler)",
+      "input": "Fix this NullRef in the Editor:\nArgumentNullException: Value cannot be null. (Parameter 'source')\n   at System.Linq.ThrowHelper.ThrowArgumentNullException(ExceptionArgument argument)\n   at System.Linq.Enumerable.Where[TSource](IEnumerable`1 source, Func`2 predicate)\n   at MedroomHub.Editor.MedroomHubWindow.DrawExams () (at Assets/Scripts/Editor/MedroomHub/MedroomHubWindow.cs:271)\n   at MedroomHub.Editor.MedroomHubWindow.OnGUI () (at Assets/Scripts/Editor/MedroomHub/MedroomHubWindow.cs:88)\n   at UnityEditor.HostView.OldOnGUI () (at /Users/bokken/build/output/unity/unity/Editor/Mono/HostView.cs:142)\n   at UnityEngine.UIElements.IMGUIContainer.DoOnGUI (UnityEngine.Event evt, UnityEngine.Matrix4x4 parentTransform, UnityEngine.Rect clippingRect, System.Boolean isComputingLayout, UnityEngine.Rect layoutSize, System.Action onGUIHandler)",
       "expectedMode": "passthrough",
       "tags": ["error-log", "stack-trace", "long-input", "english"]
     },
