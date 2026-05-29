@@ -97,9 +97,14 @@ Describe 'Refiner statistical invariants' -Tag 'Live' -Skip:(-not $available) {
         }
 
         It "hits expected mode (<_.expectedMode>) in >=60% of trials" -Skip:($_.expectedMode -notin @('passthrough','questions')) {
-            $hit  = @($script:Dist | Where-Object { $_.Mode -eq $script:ExpectedMode }).Count
+            $accept = if ($_.PSObject.Properties['acceptableModes'] -and $_.acceptableModes) {
+                @($_.acceptableModes | ForEach-Object { [string]$_ })
+            } else {
+                @([string]$script:ExpectedMode)
+            }
+            $hit  = @($script:Dist | Where-Object { [string]$_.Mode -in $accept }).Count
             $rate = $hit / $script:Trials
-            Write-Host ("    [{0}] {1}={2}/{3} ({4:P0})" -f $script:CaseId, $script:ExpectedMode, $hit, $script:Trials, $rate)
+            Write-Host ("    [{0}] {1}={2}/{3} ({4:P0})" -f $script:CaseId, ($accept -join '|'), $hit, $script:Trials, $rate)
             ($rate -ge 0.6) | Should -Be $true
         }
     }
@@ -127,5 +132,50 @@ Describe 'Refiner regression vs baseline' -Tag 'Live' -Skip:(-not ($available -a
                 $f.id, $f.baselineRate, $f.freshRate, $f.drop, $f.reason) -ForegroundColor Red
         }
         $failures.Count | Should -Be 0
+    }
+}
+
+Describe 'Invoke-RefinerBaseline smoke' -Tag 'Live' -Skip:(-not $available) {
+    It 'produces a baseline.json that matches the documented schema' {
+        $miniCorpusPath = Join-Path $TestDrive 'mini-corpus.json'
+        $miniCorpus = @{
+            version = 2
+            notes   = 'smoke fixture'
+            cases   = @(
+                @{
+                    id           = 'smoke-passthrough'
+                    input        = 'cache lru em go com tamanho 1000 e ttl 30s'
+                    expectedMode = 'passthrough'
+                    tags         = @('concrete','stack-named')
+                },
+                @{
+                    id           = 'smoke-rejected'
+                    input        = '   '
+                    expectedMode = 'rejected'
+                    tags         = @('zero-signal')
+                }
+            )
+        } | ConvertTo-Json -Depth 6
+        Set-Content -LiteralPath $miniCorpusPath -Value $miniCorpus -Encoding UTF8
+
+        $outPath = Join-Path $TestDrive 'baseline-smoke.json'
+        $scriptPath = Join-Path (Split-Path $PSScriptRoot -Parent) 'Tests/Invoke-RefinerBaseline.ps1'
+
+        & $scriptPath -Trials 2 -CorpusPath $miniCorpusPath -OutputPath $outPath -RefinerModel $script:RefinerModel -Force
+        $LASTEXITCODE | Should -Be 0
+        Test-Path $outPath | Should -BeTrue
+
+        $baseline = Get-Content -LiteralPath $outPath -Raw -Encoding utf8 | ConvertFrom-Json
+        $baseline.trialsPerCase | Should -Be 2
+        $baseline.corpusVersion | Should -Be 2
+        $baseline.refinerModel  | Should -Be $script:RefinerModel
+        # rejected case is filtered out — baseline only contains live cases.
+        @($baseline.cases).Count | Should -Be 1
+        $case = $baseline.cases[0]
+        $case.id                                 | Should -Be 'smoke-passthrough'
+        $case.modeCounts.PSObject.Properties['passthrough'] | Should -Not -BeNullOrEmpty
+        $case.modeCounts.PSObject.Properties['questions']   | Should -Not -BeNullOrEmpty
+        $case.modeCounts.PSObject.Properties['invalid']     | Should -Not -BeNullOrEmpty
+        @($case.samples).Count                   | Should -Be 2
     }
 }

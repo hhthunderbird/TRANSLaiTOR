@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "notes": "Curated inputs for refiner quality benchmark. expectedMode: passthrough | questions | rejected (caught by zero-signal pre-gate). Edit when refiner behavior intentionally changes; do not mutate to chase a flaky run.",
+  "version": 2,
+  "notes": "Curated inputs for refiner quality benchmark. expectedMode (required): passthrough | questions | rejected (caught by zero-signal pre-gate). acceptableModes (optional): array of modes that count as a hit (default [expectedMode]); MUST contain expectedMode and only values in {passthrough, questions}. Use acceptableModes only when (1) the input has no clear missing slot, (2) PR #48 probe observed the refiner picking the alternate mode, AND (3) the case has the `borderline` tag. tags is a free-form convention: camelcase | mid-conv | error-log | file-path | english | pt-en-mix | long-input | borderline | concrete | vague | stack-named | scope-named | stack-missing | scope-missing | zero-signal | pre-gate. Edit when refiner behavior intentionally changes; do not mutate to chase a flaky run. Regenerate bench-results/baseline.json via Tests/Invoke-RefinerBaseline.ps1 after editing.",
   "cases": [
     {
       "id": "concrete-go-cache",
@@ -37,6 +37,134 @@
       "input": "preciso de algo melhor",
       "expectedMode": "questions",
       "tags": ["vague", "scope-missing"]
+    },
+    {
+      "id": "camelcase-exam-membership-flag",
+      "input": "ExamMembership Exam precisa ser flag para  permitir escolher vários",
+      "expectedMode": "passthrough",
+      "acceptableModes": ["passthrough", "questions"],
+      "tags": ["camelcase", "borderline", "pt"]
+    },
+    {
+      "id": "camelcase-toggle-event-button",
+      "input": "ToggleEventButton não está disparando o evento ou o evento está incorreto ou alguma outra razão para o evento não estar chegando corretamente",
+      "expectedMode": "passthrough",
+      "tags": ["camelcase", "concrete", "pt"]
+    },
+    {
+      "id": "camelcase-interactive-exam-manager-prefabs",
+      "input": "Estou fazendo um experimento com o InteractiveExamManager carregando os exames a partir de prefabs, porém, ao iniciar o measure exam os botões para interação não apareceram ExamMembership",
+      "expectedMode": "passthrough",
+      "tags": ["camelcase", "concrete", "long-input", "pt"]
+    },
+    {
+      "id": "camelcase-autohand-raycast",
+      "input": "Em AutoHandSimulatorUIInteraction a interação com UI parece estar executando todos os controles em que o raycast atinge e isso está causando problemas, verifique",
+      "expectedMode": "passthrough",
+      "tags": ["camelcase", "concrete", "long-input", "pt"]
+    },
+    {
+      "id": "camelcase-exam-profile-rules",
+      "input": "voltando para a implementação e migração.\nExamProfile Visibility Rules e as outras Rules recebem uma lista de Memberships e possui e possui uma lista de regras, então todos os elementos dentro das rules atendem àquela lista de regras",
+      "expectedMode": "passthrough",
+      "acceptableModes": ["passthrough", "questions"],
+      "tags": ["camelcase", "borderline", "long-input", "pt"]
+    },
+    {
+      "id": "keyword-go-cache-lru-short",
+      "input": "quero implementar cache LRU em Go",
+      "expectedMode": "passthrough",
+      "acceptableModes": ["passthrough", "questions"],
+      "tags": ["borderline", "stack-named", "pt"]
+    },
+    {
+      "id": "error-log-nullref-multi-frame",
+      "input": "NullReferenceException: Object reference not set to an instance of an object\nInteractiveMeasureTape_Body.UpdateUI () (at Assets/Scripts/InteractiveObjects/InteractiveMeasureTape_Body.cs:137)\nInteractiveMeasureTape_Body.UpdateDisplayValue () (at Assets/Scripts/InteractiveObjects/InteractiveMeasureTape_Body.cs:128)\nInteractiveMeasureTape_Body.UpdateAnimation () (at Assets/Scripts/InteractiveObjects/InteractiveMeasureTape_Body.cs:101)",
+      "expectedMode": "passthrough",
+      "tags": ["error-log", "stack-trace", "long-input", "concrete"]
+    },
+    {
+      "id": "error-log-cs1061",
+      "input": "Assets\\Scripts\\UI\\MainUIController.cs(193,51): error CS1061: 'ProgressIndicator' does not contain a definition for 'progressValue' and no accessible extension method 'progressValue' accepting a first argument of type 'ProgressIndicator' could be found (are you missing a using directive or an assembly reference?)",
+      "expectedMode": "passthrough",
+      "tags": ["error-log", "file-path", "concrete"]
+    },
+    {
+      "id": "git-cleanup-and-list",
+      "input": "Limpe os debug logs desnecessários e liste os commits",
+      "expectedMode": "passthrough",
+      "tags": ["git", "concrete", "pt"]
+    },
+    {
+      "id": "file-path-list-commit",
+      "input": "RASCALSkinnedMeshCollider.cs, RascalExtensions.cs   não vão\nTooltipGradientRenderPass*.mat não vai\no resto está ok\nfaça o commit",
+      "expectedMode": "passthrough",
+      "tags": ["file-path", "concrete", "pt"]
+    },
+    {
+      "id": "midconv-visual-companion",
+      "input": "vamos continuar com o visual companion",
+      "expectedMode": "passthrough",
+      "acceptableModes": ["passthrough", "questions"],
+      "tags": ["mid-conv", "borderline", "pt"]
+    },
+    {
+      "id": "midconv-reavalie-injects",
+      "input": "agora reavalie os Injects",
+      "expectedMode": "passthrough",
+      "acceptableModes": ["passthrough", "questions"],
+      "tags": ["mid-conv", "borderline", "camelcase", "pt"]
+    },
+    {
+      "id": "midconv-dropdown-enum-flag",
+      "input": "Explicação aceita. E um dropdown selecionável como se fosse o de um enum-flag?",
+      "expectedMode": "passthrough",
+      "acceptableModes": ["passthrough", "questions"],
+      "tags": ["mid-conv", "borderline", "pt"]
+    },
+    {
+      "id": "vague-comece-investigacao",
+      "input": "comece a investigação",
+      "expectedMode": "questions",
+      "acceptableModes": ["questions", "passthrough"],
+      "tags": ["vague", "mid-conv", "borderline", "pt"]
+    },
+    {
+      "id": "vague-ideia-vaga",
+      "input": "ideia vaga",
+      "expectedMode": "questions",
+      "tags": ["vague", "scope-missing", "stack-missing", "pt"]
+    },
+    {
+      "id": "vague-a-depois-followups",
+      "input": "A, depois follow-ups",
+      "expectedMode": "questions",
+      "tags": ["vague", "scope-missing", "pt"]
+    },
+    {
+      "id": "synth-english-spring-boot",
+      "input": "fix the RedisConnectionPoolFactory leak in our Spring Boot service that only shows up after about 10000 requests",
+      "expectedMode": "passthrough",
+      "tags": ["english", "camelcase", "stack-named", "concrete"]
+    },
+    {
+      "id": "synth-long-stack-trace-500",
+      "input": "Fix this NullRef in the Editor:\nArgumentNullException: Value cannot be null. (Parameter 'source')\n   at System.Linq.ThrowHelper.ThrowArgumentNullException(ExceptionArgument argument)\n   at System.Linq.Enumerable.Where[TSource](IEnumerable`1 source, Func`2 predicate)\n   at MedroomHub.Editor.MedroomHubWindow.DrawExams () (at Assets/Scripts/Editor/MedroomHub/MedroomHubWindow.cs:271)\n   at MedroomHub.Editor.MedroomHubWindow.OnGUI () (at Assets/Scripts/Editor/MedroomHub/MedroomHubWindow.cs:88)\n   at UnityEditor.HostView.OldOnGUI () (at /Users/bokken/build/output/unity/unity/Editor/Mono/HostView.cs:142)\n   at UnityEngine.UIElements.IMGUIContainer.DoOnGUI (UnityEngine.Event evt, UnityEngine.Matrix4x4 parentTransform, UnityEngine.Rect clippingRect, System.Boolean isComputingLayout, UnityEngine.Rect layoutSize, System.Action onGUIHandler)",
+      "expectedMode": "passthrough",
+      "tags": ["error-log", "stack-trace", "long-input", "english"]
+    },
+    {
+      "id": "synth-pt-en-mix",
+      "input": "bug no controller, vai dar TypeError no JSON.parse quando o backend manda undefined",
+      "expectedMode": "passthrough",
+      "tags": ["pt-en-mix", "concrete", "stack-named"]
+    },
+    {
+      "id": "synth-bare-identifier",
+      "input": "ExamMembership",
+      "expectedMode": "passthrough",
+      "acceptableModes": ["passthrough", "questions"],
+      "tags": ["camelcase", "borderline", "bare-identifier", "pt"]
     },
     {
       "id": "zero-signal-short",
