@@ -108,3 +108,48 @@ case past threshold is rejected.
 
 Phase A ≈ 40 min (3 candidates × 26 live cases × 10 trials, model warm).
 Phase B ≈ 15 min (rebuild + N=20 regen + Pester).
+
+## Results (Phase A — 2026-05-29, N=10, full 26-case corpus)
+
+Candidates built (`prompt-refiner-{k5,p5,k5p5}`), benched, compared via
+`Tools/Compare-RefinerBench.ps1` against committed `baseline.json` (N=20).
+
+| Candidate | top_k | top_p | regressions | 2 bimodal cases → dominant mode |
+|-----------|-------|-------|-------------|----------------------------------|
+| k5   | 5  | 0.7 | **7** | both → `questions` (WRONG; expected passthrough), expHit 100%→0% |
+| p5   | 20 | 0.5 | **7** | both → `questions` (WRONG), expHit 100%→0% |
+| k5p5 | 5  | 0.5 | **7** | both → `questions` (WRONG), expHit 100%→0% |
+
+**No Pareto winner. Hypothesis refuted.** All three variants are identical in outcome —
+same 7 regressions, same wrong-mode collapse on the 2 bimodal cases.
+
+Regressed cases (expHit 100%→0% under every candidate): `concrete-sql-opt`,
+`camelcase-exam-membership-flag`, `camelcase-exam-profile-rules`,
+`keyword-go-cache-lru-short`, `midconv-dropdown-enum-flag`, `vague-comece-investigacao`,
+`synth-bare-identifier`.
+
+### Findings
+
+1. **Tightening sampling makes the model greedier toward `questions`, not the correct
+   mode.** The hypothesis was backwards. Wide sampling (`top_k 20`/`top_p 0.7`) is what
+   routed these borderline inputs to `passthrough`; once the candidate pool narrows, the
+   low-temperature argmax lands on `questions`. The 2 bimodal cases DO go deterministic —
+   but in the WRONG mode.
+2. **`top_k` vs `top_p` indistinguishable here.** k5, p5, k5p5 gave identical regression
+   sets. Either narrowing alone flips the argmax; nothing to isolate.
+3. **Net strictly worse:** 7 borderline/vague cases lose correct routing.
+4. **Harness limitation (recorded):** `baseline.json` is a single N=20 snapshot, so it
+   cannot measure run-to-run oscillation. Snapshot-vs-snapshot only shows each run is
+   internally consistent, not whether oscillation shrank. Proving a determinism gain needs
+   multiple control runs vs multiple candidate runs (across-run variance), not one-each.
+
+### Decision: REJECT — keep `top_k 20` / `top_p 0.7` unchanged.
+
+Tighter sampling stabilizes the 2 bimodal cases on the WRONG mode and breaks 5 other
+borderline/vague cases. The original instability is already absorbed by `acceptableModes`
+(main suite 407/407). No Modelfile change ships. Candidate models + temp Modelfiles
+removed.
+
+**Follow-up worth its own spec (not pursued):** the real lever for borderline routing is
+the `DEFAULT IS A` prompt bias + few-shot balance, not sampling width; and the bench
+harness should grow a multi-run variance mode before any future determinism claim.
