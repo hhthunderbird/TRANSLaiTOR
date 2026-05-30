@@ -209,6 +209,20 @@ if (-not $skipCompiler -and (Test-InputIsErrorLog -Text $userInput)) {
     $skipCompiler = $true
 }
 
+# Conversational stage: pure continuation prompts ("vamos continuar de onde
+# paramos") carry no task topic. The compiler would be forced to invent one,
+# so bypass the whole pipeline — raw passthrough. No synthetic XML.
+if (-not $skipCompiler -and (Test-InputIsConversational -Text $userInput)) {
+    if (-not $Raw) {
+        Write-Host "(prompt conversacional - sem destilacao)" -ForegroundColor DarkGray
+    }
+    $metricMode   = 'conversational'
+    $skipRefiner  = $true
+    $skipCompiler = $true
+    # $xml stays $null -> -Raw emits empty stdout; interactive branch (below)
+    # echoes the raw text without clipboard write.
+}
+
 if (-not $skipRefiner) {
     try { $null = Resolve-Tool 'ollama'; $ollamaPresent = $true } catch { $ollamaPresent = $false }
 
@@ -392,7 +406,9 @@ if ($Raw) {
     exit 0
 }
 
-Write-Host "`n$xml`n" -ForegroundColor Gray
+if ($metricMode -ne 'conversational') {
+    Write-Host "`n$xml`n" -ForegroundColor Gray
+}
 
 if ($Send) {
     if (-not (Test-CommandPresent -Name 'claude')) {
@@ -430,6 +446,9 @@ if ($Send) {
     }
     Write-Output $claudeText
     exit $claudeExit
+} elseif ($metricMode -eq 'conversational') {
+    # Nothing distilled — echo the raw text, no clipboard write.
+    Write-Output $rawInput
 } else {
     $xml | Set-Clipboard
     Write-Host "copiado p/ clipboard (Ctrl+V). use -Send p/ pipe direto no claude." -ForegroundColor Green
