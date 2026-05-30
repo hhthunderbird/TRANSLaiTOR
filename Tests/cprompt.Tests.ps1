@@ -1809,3 +1809,60 @@ Describe 'refiner-corpus.json schema' {
         }
     }
 }
+
+Describe 'Test-InputIsConversational' {
+    It 'returns true for pure continuation imperatives' {
+        $positives = @(
+            'vamos continuar de onde paramos',
+            'vamos continuar',
+            'vamos na ordem',
+            'continuar de onde paramos',
+            'pode seguir',
+            'pode continuar',
+            'próximo',
+            'proximo',
+            'prossiga',
+            'segue',
+            'lets continue',
+            "let's continue",
+            'continue where we left off',
+            'pick up where we left off',
+            'go on',
+            'keep going'
+        )
+        foreach ($p in $positives) {
+            Test-InputIsConversational -Text $p | Should -BeTrue -Because "'$p' is a pure continuation"
+        }
+    }
+
+    It 'returns false when a task topic is present' {
+        $negatives = @(
+            'continua o parser',
+            'continue the auth refactor',
+            'vamos refatorar o cache',
+            'adiciona testes ao modulo X',
+            'next: implement retry logic',
+            'vamos continuar a implementacao do parser de XML'
+        )
+        foreach ($n in $negatives) {
+            Test-InputIsConversational -Text $n | Should -BeFalse -Because "'$n' carries a task topic"
+        }
+    }
+
+    It 'returns false for status questions (owned by meta-query)' {
+        Test-InputIsConversational -Text 'o que falta?' | Should -BeFalse
+        Test-InputIsConversational -Text 'whats left?'  | Should -BeFalse
+    }
+
+    It 'returns false for empty or whitespace input' {
+        Test-InputIsConversational -Text ''    | Should -BeFalse
+        Test-InputIsConversational -Text '   ' | Should -BeFalse
+        Test-InputIsConversational -Text $null | Should -BeFalse
+    }
+
+    It 'is case-insensitive and tolerates trailing punctuation' {
+        Test-InputIsConversational -Text 'VAMOS CONTINUAR' | Should -BeTrue
+        Test-InputIsConversational -Text 'vamos continuar.' | Should -BeTrue
+        Test-InputIsConversational -Text 'lets continue!' | Should -BeTrue
+    }
+}

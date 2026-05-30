@@ -893,6 +893,40 @@ function Format-ErrorLogXml {
     return "<task>$task</task><context>$truncErrList</context><constraints>Analisar causa raiz e corrigir. Erros unicos: $($errors.Count), localizacoes: $($locations.Count)</constraints>"
 }
 
+function Test-InputIsConversational {
+    [CmdletBinding()]
+    param([AllowNull()][AllowEmptyString()][string]$Text)
+    if ([string]::IsNullOrWhiteSpace($Text)) { return $false }
+
+    # Strip leading/trailing whitespace and trailing sentence punctuation so
+    # 'vamos continuar.' and 'lets continue!' still match the anchored set.
+    $t = $Text.Trim().TrimEnd('.', '!', '?', ' ')
+
+    # Pure continuation / "carry on" imperatives, anchored to the WHOLE prompt.
+    # Anything with a task topic noun after the verb fails the anchor and
+    # therefore compiles. Status QUESTIONS are intentionally excluded — they
+    # are owned by Test-InputIsMetaQuery, which runs first and is more useful.
+    $phrases = @(
+        'vamos continuar de onde paramos',
+        'continuar de onde paramos',
+        'vamos continuar',
+        'vamos na ordem',
+        'pode continuar',
+        'pode seguir',
+        'prossiga',
+        'segue',
+        'continua',
+        'pr[oó]ximo',
+        'continue where we left off',
+        'pick up where we left off',
+        "let'?s continue",
+        'go on',
+        'keep going'
+    )
+    $pattern = '(?i)^\s*(' + ($phrases -join '|') + ')\s*$'
+    return [bool]($t -match $pattern)
+}
+
 Export-ModuleMember -Function `
     Remove-Bom, `
     Remove-AnsiEscapes, `
@@ -923,4 +957,5 @@ Export-ModuleMember -Function `
     Merge-RefinementAnswers, `
     Get-RefinerRegressions, `
     Test-InputIsErrorLog, `
-    Format-ErrorLogXml
+    Format-ErrorLogXml, `
+    Test-InputIsConversational
