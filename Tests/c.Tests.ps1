@@ -301,4 +301,14 @@ Describe 'c.ps1 conversational bypass' {
         $metric = $lastLine | ConvertFrom-Json
         $metric.mode | Should -Be 'conversational'
     }
+
+    It 'does not call claude for -Send on a continuation prompt' {
+        $tmpHome = Join-Path $TestDrive 'home-conv-send'
+        $stateDir = Join-Path $tmpHome '.cprompt'
+        New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+        $safePath = Split-Path (Get-Command powershell.exe).Source
+        $res = Invoke-CScript -Args @('-Send', 'vamos continuar') -IsolatedHome $tmpHome -PathOverride $safePath
+        $res.ExitCode | Should -Be 0
+        ([string]$res.StdOut) | Should -Match 'vamos continuar'
+    }
 }

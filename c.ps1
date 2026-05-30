@@ -402,7 +402,7 @@ try {
 }
 
 if ($Raw) {
-    Write-Output $xml
+    if ($null -ne $xml) { Write-Output $xml }
     exit 0
 }
 
@@ -410,7 +410,7 @@ if ($metricMode -ne 'conversational') {
     Write-Host "`n$xml`n" -ForegroundColor Gray
 }
 
-if ($Send) {
+if ($Send -and $metricMode -ne 'conversational') {
     if (-not (Test-CommandPresent -Name 'claude')) {
         Write-Host "ERRO: 'claude' CLI nao encontrado no PATH. XML copiado para clipboard como fallback." -ForegroundColor Red
         $xml | Set-Clipboard
