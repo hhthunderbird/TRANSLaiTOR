@@ -54,15 +54,21 @@ Rejected alternatives:
   `Test-InputIsMetaQuery`).
 - A topic/technical token following the verb defeats the match.
 
+Scope: pure continuation **imperatives** only. Status *questions*
+(`o que falta?`, `whats left`, `what now`, `e agora?`) are deliberately
+EXCLUDED — `Test-InputIsMetaQuery` (runs first, `c.ps1:182`) already matches
+WH-word + status + `?` and builds project-context XML, which is more useful
+than raw passthrough. No detector overlap.
+
 Initial phrase set (whole-prompt, anchored):
 
 - **PT:** `vamos continuar`, `continuar de onde paramos`,
   `vamos continuar de onde paramos`, `vamos na ordem`, `pode continuar`,
   `pode seguir`, `segue`, `continua`, `próximo` / `proximo`, `vamos`,
-  `e agora` / `e agora?`, `o que falta` / `o que falta?`, `prossiga`
+  `prossiga`
 - **EN:** `lets continue` / `let's continue`,
   `continue where we left off`, `pick up where we left off`, `go on`,
-  `keep going`, `whats left` / `what's left`, `what now`
+  `keep going`
 
 (Exact regex finalized during TDD against the positive/negative table.)
 
@@ -128,13 +134,17 @@ spawn; c.ps1 layer guarantees parity for direct interactive use.
 TDD. The positive/negative table **is** the discriminator spec.
 
 **Positive (bypass):** `vamos continuar de onde paramos`, `vamos na ordem`,
-`lets continue`, `continue where we left off`, `pode seguir`, `o que falta?`,
-`próximo`.
+`lets continue`, `continue where we left off`, `pode seguir`, `próximo`,
+`prossiga`.
 
 **Negative (compile):** `continua o parser`, `continue the auth refactor`,
 `vamos refatorar o cache`, `adiciona testes ao módulo X`, `next: implement
-retry logic`, `o que falta no parser de XML?` (topic present), empty string,
-whitespace.
+retry logic`, empty string, whitespace.
+
+**Status questions (NOT this detector — owned by meta-query):** `o que
+falta?`, `whats left?` → `Test-InputIsConversational` returns `$false`; they
+are intercepted upstream by `Test-InputIsMetaQuery`. The unit table asserts
+the detector return value (`$false`), not end-to-end routing.
 
 Locations:
 - Unit table → `Tests/cprompt.Tests.ps1` (new `Describe`/`Context`).
