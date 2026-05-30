@@ -223,6 +223,36 @@ Describe 'Get-CacheKey' {
         $key.Length | Should -Be 64
         $key | Should -Match '^[0-9a-f]{64}$'
     }
+
+    It 'returns different hash for different context with same model + input' {
+        $a = Get-CacheKey -Model 'm1' -Text 'continue' -Context 'discussing Unity exam system'
+        $b = Get-CacheKey -Model 'm1' -Text 'continue' -Context 'discussing Pester tests'
+        $a | Should -Not -Be $b
+    }
+
+    It 'returns same hash for same context (deterministic)' {
+        $a = Get-CacheKey -Model 'm1' -Text 'continue' -Context 'some context'
+        $b = Get-CacheKey -Model 'm1' -Text 'continue' -Context 'some context'
+        $a | Should -Be $b
+    }
+
+    It 'context-present key differs from no-context key' {
+        $withCtx = Get-CacheKey -Model 'm1' -Text 'continue' -Context 'ctx'
+        $noCtx   = Get-CacheKey -Model 'm1' -Text 'continue'
+        $withCtx | Should -Not -Be $noCtx
+    }
+
+    It 'omitted context defaults to empty (backward compatible with explicit empty)' {
+        $omitted = Get-CacheKey -Model 'm1' -Text 'hello'
+        $empty   = Get-CacheKey -Model 'm1' -Text 'hello' -Context ''
+        $omitted | Should -Be $empty
+    }
+
+    It 'still produces a 64-char hex digest when context is supplied' {
+        $key = Get-CacheKey -Model 'm' -Text 't' -Context 'c'
+        $key.Length | Should -Be 64
+        $key | Should -Match '^[0-9a-f]{64}$'
+    }
 }
 
 Describe 'Cache roundtrip' {

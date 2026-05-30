@@ -270,7 +270,7 @@ if (-not $skipRefiner) {
 }
 
 if (-not $skipCompiler) {
-    $cacheKey = Get-CacheKey -Model $Model -Text $userInput
+    $cacheKey = Get-CacheKey -Model $Model -Text $userInput -Context $ConversationContext
 
     if (-not $NoCache) {
         $cached = Get-CachedXml -Key $cacheKey -CacheDir $script:CacheDir

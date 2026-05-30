@@ -248,9 +248,14 @@ function Get-CacheKey {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Model,
-        [Parameter(Mandatory)][string]$Text
+        [Parameter(Mandatory)][string]$Text,
+        # Conversation context folded into the key so the same prompt under a
+        # different prior-turn context does NOT collide on a stale cache entry.
+        # Defaults to '' → identical key to the legacy two-field form when no
+        # context is supplied (backward compatible).
+        [string]$Context = ''
     )
-    $bytes = [System.Text.Encoding]::UTF8.GetBytes("$Model`0$Text")
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes("$Model`0$Text`0$Context")
     $sha = [System.Security.Cryptography.SHA256]::Create()
     try {
         $hash = $sha.ComputeHash($bytes)
