@@ -1819,6 +1819,7 @@ Describe 'Test-InputIsConversational' {
             'continuar de onde paramos',
             'pode seguir',
             'pode continuar',
+            'continua',
             'próximo',
             'proximo',
             'prossiga',

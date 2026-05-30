@@ -900,7 +900,7 @@ function Test-InputIsConversational {
 
     # Strip leading/trailing whitespace and trailing sentence punctuation so
     # 'vamos continuar.' and 'lets continue!' still match the anchored set.
-    $t = $Text.Trim().TrimEnd('.', '!', '?', ' ')
+    $t = $Text.Trim().TrimEnd('.', '!', '?')
 
     # Pure continuation / "carry on" imperatives, anchored to the WHOLE prompt.
     # Anything with a task topic noun after the verb fails the anchor and
