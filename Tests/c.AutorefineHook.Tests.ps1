@@ -163,6 +163,6 @@ exit 0
             -StubBody $stub
 
         $r.ExitCode | Should -Be 0
-        ($r.StdOut | Out-String).Trim() | Should -BeNullOrEmpty
+        $r.StdOut | Should -BeNullOrEmpty
     }
 }
