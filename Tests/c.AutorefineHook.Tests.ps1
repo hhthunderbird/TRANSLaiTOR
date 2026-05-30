@@ -142,3 +142,27 @@ exit 0
         $r.StdOut   | Should -Not -Match 'POISONED'
     }
 }
+
+Describe 'c-autorefine.ps1 conversational bypass' {
+    It 'exits 0 with no output for a multi-word continuation prompt' {
+        # Stub emits a valid envelope so the test is genuinely red before the
+        # bypass is added (the hook would otherwise proceed and inject the banner).
+        $stub = @'
+[CmdletBinding()]
+param(
+    [switch]$NonInteractive,
+    [switch]$Raw,
+    [Parameter(ValueFromRemainingArguments=$true)][string[]]$Rest
+)
+'<task>refined task</task><context>refined context</context><constraints>refined constraints</constraints>'
+exit 0
+'@
+        $r = Invoke-HookSubprocess `
+            -TestDrive $TestDrive `
+            -Prompt 'vamos continuar de onde paramos' `
+            -StubBody $stub
+
+        $r.ExitCode | Should -Be 0
+        ($r.StdOut | Out-String).Trim() | Should -BeNullOrEmpty
+    }
+}

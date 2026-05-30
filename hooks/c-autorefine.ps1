@@ -48,6 +48,13 @@ try {
     $conversational = '^(yes|yeah|yep|no|nope|y|n|ok|okay|sim|nao|n[aã]o|continue|continua|next|go|proceed|stop|wait|sure|thanks|obrigado|done|pronto)\W*$'
     if ($trim -match $conversational) { exit 0 }
 
+    # Multi-word continuation prompts ("vamos continuar de onde paramos")
+    # carry no task topic; bypass before spawning ollama. Reuse the module
+    # discriminator as the single source of truth. Fail-open on import error.
+    try { Import-Module 'C:\Projetos\TRANSLaiTOR\cprompt.psm1' -Force -ErrorAction Stop } catch {}
+    if ((Get-Command Test-InputIsConversational -ErrorAction SilentlyContinue) `
+        -and (Test-InputIsConversational -Text $trim)) { exit 0 }
+
     if (-not (Test-Path $cps)) { exit 0 }
 
     # Extract last assistant text from transcript for conversation context.
