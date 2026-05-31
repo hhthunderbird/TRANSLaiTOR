@@ -276,3 +276,39 @@ Describe 'c.ps1 -NonInteractive (legacy alias, now a no-op)' {
         $res.ExitCode | Should -Be 0
     }
 }
+
+Describe 'c.ps1 conversational bypass' {
+    It 'emits empty stdout for a continuation prompt under -Raw (no ollama)' {
+        $tmpHome = Join-Path $TestDrive 'home-conv-raw'
+        $stateDir = Join-Path $tmpHome '.cprompt'
+        New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+        # PathOverride hides ollama: bypass must not need the compiler at all.
+        $safePath = Split-Path (Get-Command powershell.exe).Source
+        $res = Invoke-CScript -Args @('-Raw', 'vamos continuar de onde paramos') -IsolatedHome $tmpHome -PathOverride $safePath
+        $res.ExitCode | Should -Be 0
+        ([string]$res.StdOut).Trim() | Should -BeNullOrEmpty
+    }
+
+    It 'records mode=conversational in metrics' {
+        $tmpHome = Join-Path $TestDrive 'home-conv-metric'
+        $stateDir = Join-Path $tmpHome '.cprompt'
+        New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+        $safePath = Split-Path (Get-Command powershell.exe).Source
+        $res = Invoke-CScript -Args @('-Raw', 'vamos na ordem') -IsolatedHome $tmpHome -PathOverride $safePath
+        $res.ExitCode | Should -Be 0
+        $metricsPath = Join-Path $stateDir 'metrics.jsonl'
+        $lastLine = Get-Content $metricsPath -Tail 1 -Encoding utf8
+        $metric = $lastLine | ConvertFrom-Json
+        $metric.mode | Should -Be 'conversational'
+    }
+
+    It 'does not call claude for -Send on a continuation prompt' {
+        $tmpHome = Join-Path $TestDrive 'home-conv-send'
+        $stateDir = Join-Path $tmpHome '.cprompt'
+        New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+        $safePath = Split-Path (Get-Command powershell.exe).Source
+        $res = Invoke-CScript -Args @('-Send', 'vamos continuar') -IsolatedHome $tmpHome -PathOverride $safePath
+        $res.ExitCode | Should -Be 0
+        ([string]$res.StdOut) | Should -Match 'vamos continuar'
+    }
+}
